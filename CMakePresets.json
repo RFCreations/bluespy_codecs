@@ -1,0 +1,70 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "defaults",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "hidden": true
+        },
+        {
+            "name": "msvc-defaults",
+            "inherits": "defaults",
+            "hidden": true,
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_C_COMPILER": "cl.exe"
+            },
+            "environment": {
+                "VSCMD_ARG_TGT_ARCH": "x64"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "release-defaults",
+            "inherits": "defaults",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "debug-defaults",
+            "inherits": "defaults",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "debug",
+            "inherits": "debug-defaults"
+        },
+        {
+            "name": "release",
+            "inherits": "release-defaults"
+        },
+        {
+            "name": "msvc-debug",
+            "inherits": [
+                "debug-defaults",
+                "msvc-defaults"
+            ]
+        },
+        {
+            "name": "msvc-release",
+            "inherits": [
+                "release-defaults",
+                "msvc-defaults"
+            ]
+        }
+    ]
+}

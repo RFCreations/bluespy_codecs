@@ -1,0 +1,6 @@
+[submodule "libfreeaptx"]
+	path = libfreeaptx
+	url = https://github.com/iamthehorker/libfreeaptx
+[submodule "fdk-aac-stripped"]
+	path = fdk-aac-stripped
+	url = https://gitlab.freedesktop.org/wtaymans/fdk-aac-stripped.git
