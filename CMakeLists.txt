@@ -27,10 +27,10 @@ add_library(aac SHARED
 add_subdirectory(fdk-aac-stripped EXCLUDE_FROM_ALL)
 target_link_libraries(aac PRIVATE fdk-aac bluespy_codec_build)
 
-# #Build aptX
-# add_library(aptx SHARED
-#     aptx.cpp
-#     libfreeaptx/freeaptx.c
-# )
-# target_link_libraries(aptx PRIVATE bluespy_codec_build)
-# target_include_directories(aptx PRIVATE libfreeaptx)
+# Build aptX
+add_library(aptx SHARED
+    APTX.c
+    libfreeaptx/freeaptx.c
+)
+target_link_libraries(aptx PRIVATE bluespy_codec_build)
+target_include_directories(aptx PRIVATE libfreeaptx)
