@@ -54,6 +54,18 @@ BLUESPY_CODEC_API bluespy_audio_codec_lib_info init();
 BLUESPY_CODEC_API bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy_audio_codec_info* info);
 
 /**
+ * @brief bluespy_codec_deinit
+ * @param[in] transport Type of bluetooth audio
+ * @param[in] media_codec_type Codec identifier, e.g. Audio Codec ID (BLUESPY_CODEC_A2DP_TYPES)
+ * @param[in] codec_specific_data Opaque block of data from setup
+ * @param[in] codec_specific_data_len
+ * @return bluespy_audio_codec_deinit_t object.
+ *
+ * This function deinitialises a codec.
+ */
+BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id);
+
+/**
  * @brief bluespy_codec_decode
  * @param[in] handle
  * @param[in] coded_data
