@@ -9,17 +9,17 @@ These serve as an example for adding new custom codecs. In order to add a new on
 0. Ensure you have cmake and a suitable compiler/toolchain installed (MSVC/LLVM/GCC).
 1. Open a terminal (on windows you may need to use the Visual Studio developer prompt).
 2. Run: `git clone --recurse-submodules https://github.com/RFCreations/bluespy_codecs.git && cd bluespy_codecs`
-3. Add mycodec.cpp, you may wish to copy the structure of aptx.cpp or aac.cpp.
-4. Implement the four functions in bluespy_codec_interface.h.
+3. Add mycodec.c, you may wish to copy the structure of APTX.c or AAC.c.
+4. Implement the four functions in bluespy_codec_interface.h (init, codec_init, codec_deinit, and codec_decode).
 5. Add a new secion at the bottom of CMakeLists.txt for mycodec, using the aptx/acc ones as an example.
 6. Run: `cmake --preset release && cmake --build build/release`
 7. Copy build/release/mycodec.{dll,so,dylib} to a directory as specified below:
-   - Windows User: C:\\Users\\\<USER\>\\AppData\\Local\\RFcreations\\blueSPY\\codecs\\
-   - Windows System: C:\\Program Files\\RFcreations\\blueSPY\\codecs\\
-   - Mac User: ~/Library/Application Support/RFcreations/blueSPY/codecs/
-   - Mac System: /Applications/blueSPY.app/Contents/Frameworks/codecs/
-   - Linux User: ~/.local/share/RFcreations/blueSPY/codecs/
-   - Linux System: \<INSTALLATION_DIRECTORY\>/codecs/
+   - Windows User: C:\\Users\\\<USER\>\\AppData\\Roaming\\RFcreations\\blueSPY\\audio_codecs\\
+   - Windows System: C:\\Program Files\\RFcreations\\blueSPY\\audio_codecs\\
+   - Mac User: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
+   - Mac System: /Applications/blueSPY.app/Contents/Frameworks/audio_codecs/
+   - Linux User: ~/.local/share/RFcreations/blueSPY/audio_codecs/
+   - Linux System: \<INSTALLATION_DIRECTORY\>/audio_codecs/
 
 Contact RFcreations support if you require help with this, or your codec needs some extra information.
 

@@ -13,6 +13,16 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
+# Find bluespy.h in blueSPY install directory
+find_path(BLUESPY_INCLUDE_DIR 
+          NAMES bluespy.h
+          PATHS "C:/Program Files/RFcreations/blueSPY")
+if (NOT BLUESPY_INCLUDE_DIR)
+    message(WARNING "bluespy.h not found, please provide the directory with -DMYLIB_INCLUDE_DIR=/path/to/include")
+endif()
+
+include_directories(${BLUESPY_INCLUDE_DIR})
+
 add_library(bluespy_codecs INTERFACE)
 target_include_directories(bluespy_codecs INTERFACE include)
 

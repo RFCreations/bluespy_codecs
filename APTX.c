@@ -9,14 +9,14 @@
 
 // TODO aptx LL ??
 
-bluespy_audio_codec_lib_info init() { return (bluespy_audio_codec_lib_info){.api_ver= 1, .codec_name = "aptX"}; }
+bluespy_audio_codec_lib_info init() { return (bluespy_audio_codec_lib_info){.api_version= 1, .codec_name = "aptX"}; }
 
 static struct APTX_handle {
     struct aptx_context* aptx;
     bool hd;
     uint32_t sample_rate;
     uint8_t n_channels;
-} handle = {.aptx = nullptr, .hd = false, .sample_rate = 0, .n_channels = 0};
+} handle = {.aptx = NULL, .hd = false, .sample_rate = 0, .n_channels = 0};
 
 bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy_audio_codec_info* info) {
     
@@ -24,7 +24,7 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     
     bool hd = false;
     if (info->type == BLUESPY_AVDTP_APTX || info->type == BLUESPY_AVDTP_APTX_HD) {
-        bool hd = (info->type == BLUESPY_AVDTP_APTX_HD);
+        hd = (info->type == BLUESPY_AVDTP_APTX_HD);
     } else {
          return r;
     }
@@ -45,13 +45,13 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     memcpy(&codec_data, info->data.AVDTP.AVDTP_Media_Codec_Specific_Information, 5);
 
 
-    if ((channels_sample_rate & 0xF) == 2) {
+    if ((codec_data.channels_sample_rate & 0xF) == 2) {
         r.format.n_channels = 2;
     } else {
         return r;
     }
 
-    switch (channels_sample_rate >> 4) {
+    switch (codec_data.channels_sample_rate >> 4) {
         case 1:  r.format.sample_rate = 48000; break;
         case 2:  r.format.sample_rate = 44100; break;
         case 4:  r.format.sample_rate = 32000; break;
@@ -68,9 +68,19 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
 
     r.ret = 0;
     r.fns.decode = codec_decode;
-    r.fns.deinit = NULL;
+    r.fns.deinit = codec_deinit;
     
     return r;
+}
+
+BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id) {
+    if (handle.aptx) {
+        aptx_finish(handle.aptx);
+        handle.aptx = NULL;
+        handle.hd = false;
+        handle.sample_rate = 0;
+        handle.n_channels = 0;
+    }
 }
 
 
@@ -104,7 +114,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiost
     // Convert to 16-bit PCM
     static int16_t final_output[4096 * 2];
     size_t final_samples = 0;
-    for (size_t i; i + 2 < written && final_samples < sizeof(final_output)/sizeof(final_output[0]); i += 3) {
+    for (size_t i = 0; i + 2 < written && final_samples < sizeof(final_output) / sizeof(final_output[0]); i += 3) {
         final_output[final_samples++] = (int16_t)out_buf[i + 1] | ((int16_t)out_buf[i + 2] << 8);
     }
 

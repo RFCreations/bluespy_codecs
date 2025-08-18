@@ -9,11 +9,11 @@
 #include <stdint.h>
 #include <string.h>
 
-// #ifdef __cplusplus 
-// extern "C" { 
-// #endif
+#ifdef __cplusplus 
+extern "C" { 
+#endif
 
-bluespy_audio_codec_lib_info init() { return (bluespy_audio_codec_lib_info){.api_ver= 1, .codec_name = "AAC"}; }
+bluespy_audio_codec_lib_info init() { return (bluespy_audio_codec_lib_info){.api_version= 1, .codec_name = "AAC"}; }
 
 static struct AAC_handle{
     HANDLE_AACDECODER aac;
@@ -28,7 +28,7 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     if(info->data.AVDTP.len < 6) {
         r.ret = -2;    
         return r;
-    } 
+    }
 
     struct {
         uint8_t object_type;
@@ -94,20 +94,32 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     
     r.ret = 0;
     r.fns.decode = codec_decode;
-    r.fns.deinit = NULL;
+    r.fns.deinit = codec_deinit;
 
     return r;
 }
 
+void codec_deinit(bluespy_audiostream_id id) {
+    if (handle.aac) {
+        aacDecoder_Close(handle.aac);
+        handle.aac = NULL;
+    }
+}
 
-BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, const uint8_t* payload, const uint32_t payload_len) {
-    static uint8_t out_buf[4096*2];
+BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, const uint8_t* payload, const uint32_t payload_len) 
+{
+    // Make the output buffer larger to handle multiple frames
+    static uint8_t out_buf[32768];   // 32 KB
+    
     bluespy_audio_codec_decoded_audio out = {.data = NULL, .len = 0};
+
+    // RTP sequence number
     uint16_t seq = (uint16_t)payload[2] << 8 | payload[3];
 
     uint32_t payload_left = payload_len;
-    if (payload_len > 0) { // Remove RTP header
-        uint32_t rtp_header_len = 12 + 4 * (*payload & 0xF);
+    if (payload_len > 0) {
+        // Remove RTP header: 12 bytes + 4*CSRC count
+        uint32_t rtp_header_len = 12 + 4 * (payload[0] & 0x0F);
 
         if (payload_len < rtp_header_len)
             return out;
@@ -117,97 +129,47 @@ BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiost
     }
 
     UINT flags = 0;
-
-    if (((seq - handle.sequence_number) & 0xFFFF) != 1 || handle.sequence_number >> 16)
-        flags |= AACDEC_CLRHIST | AACDEC_INTR;
+    if (((seq - handle.sequence_number) & 0xFFFF) != 1 && handle.sequence_number != (uint32_t)-1)
+        flags |= AACDEC_INTR;   // conceal gap
 
     handle.sequence_number = seq;
 
     uint32_t valid = payload_left;
-    uint32_t out_len = 4096;
     uint8_t* uncoded_data = out_buf;
     uint32_t out_data_len = 0;
+    uint32_t out_len = sizeof(out_buf);
 
-    while (valid) {
+    while (valid > 0) {
         uint32_t size = valid;
-        if (aacDecoder_Fill(handle.aac, (uint8_t**)&payload, &size, &valid) !=
-            AAC_DEC_OK)
+        if (aacDecoder_Fill(handle.aac, (uint8_t**)&payload, &size, &valid) != AAC_DEC_OK)
             return out;
-
-        payload_left += size - valid;
 
         CStreamInfo* info = aacDecoder_GetStreamInfo(handle.aac);
         if (!info)
             return out;
 
-        uint32_t block_size = info->frameSize * info->numChannels;
+        uint32_t samples_per_frame = info->frameSize * info->numChannels;
+        uint32_t bytes_per_frame = samples_per_frame * sizeof(int16_t);
 
-        if (out_len < block_size)
-            return out;
+        if (out_len < bytes_per_frame)
+            break; // prevent overflow
 
-        if (aacDecoder_DecodeFrame(handle.aac, (int16_t*)uncoded_data, out_len, flags) != AAC_DEC_OK)
-            return out;
+        if (aacDecoder_DecodeFrame(handle.aac, (int16_t*)uncoded_data, bytes_per_frame / sizeof(int16_t), flags) != AAC_DEC_OK)
+            break; // conceal on error, break out
 
-        uncoded_data += block_size;
-        out_data_len += block_size;
-        out_len -= block_size;
+        uncoded_data += bytes_per_frame;
+        out_data_len += bytes_per_frame;
+        out_len -= bytes_per_frame;
     }
 
-    out.data = out_buf;
-    out.len = out_data_len;
+    if (out_data_len > 0) {
+        out.data = out_buf;
+        out.len  = out_data_len;
+    }
+
     return out;
 }
 
-// int bluespy_codec_decode(bluespy_codec_handle* handle, const uint8_t* coded_data, int coded_len,
-//                          int16_t* uncoded_data, int uncoded_len) {
-//     uint16_t seq = (uint16_t)coded_data[2] << 8 | coded_data[3];
-
-//     if (coded_len > 0) { // Remove RTP header
-//         uint32_t rtp_header_len = 12 + 4 * (*coded_data & 0xF);
-
-//         if (coded_len < rtp_header_len)
-//             return BLUESPY_CODEC_RECOVERABLE_ERROR;
-
-//         coded_data += rtp_header_len;
-//         coded_len -= rtp_header_len;
-//     }
-
-//     UINT flags = 0;
-
-//     if (((seq - handle->sequence_number) & 0xFFFF) != 1 || handle->sequence_number >> 16)
-//         flags |= AACDEC_CLRHIST | AACDEC_INTR;
-
-//     handle->sequence_number = seq;
-
-//     uint32_t valid = coded_len, out_len = uncoded_len;
-
-//     while (valid) {
-//         uint32_t size = valid;
-//         if (aacDecoder_Fill(handle->aac, const_cast<uint8_t**>(&coded_data), &size, &valid) !=
-//             AAC_DEC_OK)
-//             return BLUESPY_CODEC_RECOVERABLE_ERROR;
-
-//         coded_data += size - valid;
-
-//         auto info = aacDecoder_GetStreamInfo(handle->aac);
-//         if (!info)
-//             return BLUESPY_CODEC_RECOVERABLE_ERROR;
-
-//         uint32_t block_size = info->frameSize * info->numChannels;
-
-//         if (out_len < block_size)
-//             return BLUESPY_CODEC_BUFFER_TOO_SMALL;
-
-//         if (aacDecoder_DecodeFrame(handle->aac, uncoded_data, out_len, flags) != AAC_DEC_OK)
-//             return BLUESPY_CODEC_RECOVERABLE_ERROR;
-
-//         uncoded_data += block_size;
-//         out_len -= block_size;
-//     }
-
-//     return uncoded_len - out_len;
-// }
-
-// #ifdef __cplusplus 
-// }
-// #endif
+#ifdef __cplusplus 
+}
+#endif
