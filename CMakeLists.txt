@@ -20,7 +20,6 @@ find_path(BLUESPY_INCLUDE_DIR
 if (NOT BLUESPY_INCLUDE_DIR)
     message(WARNING "bluespy.h not found, please provide the directory with -DMYLIB_INCLUDE_DIR=/path/to/include")
 endif()
-
 include_directories(${BLUESPY_INCLUDE_DIR})
 
 add_library(bluespy_codecs INTERFACE)
