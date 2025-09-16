@@ -104,11 +104,10 @@ void codec_deinit(bluespy_audiostream_id id) {
         aacDecoder_Close(handle.aac);
         handle.aac = NULL;
     }
-}
+} 
 
 BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, const uint8_t* payload, const uint32_t payload_len) 
 {
-    // Make the output buffer larger to handle multiple frames
     static uint8_t out_buf[32768];   // 32 KB
     
     bluespy_audio_codec_decoded_audio out = {.data = NULL, .len = 0};
