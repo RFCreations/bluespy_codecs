@@ -3,6 +3,9 @@ set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
 project(bluespy_codecs)
 
+option(BUILD_AAC "Build AAC codec DLL" ON)
+option(BUILD_APTX "Build aptX codec DLL" ON)
+
 # set(CMAKE_CXX_STANDARD 11)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -29,17 +32,24 @@ add_library(bluespy_codec_build INTERFACE)
 target_link_libraries(bluespy_codec_build INTERFACE bluespy_codecs)
 target_compile_definitions(bluespy_codec_build INTERFACE BLUESPY_CODEC_BUILD)
 
-# Build AAC
-add_library(aac SHARED
-    AAC.c
-)
-add_subdirectory(fdk-aac-stripped EXCLUDE_FROM_ALL)
-target_link_libraries(aac PRIVATE fdk-aac bluespy_codec_build)
+# Build AAC if enabled
+if(BUILD_AAC)
+    add_library(aac SHARED
+        AAC.c
+    )
+    add_subdirectory(fdk-aac-stripped EXCLUDE_FROM_ALL)
+    target_link_libraries(aac PRIVATE fdk-aac bluespy_codec_build)
+endif()
 
-# Build aptX
-add_library(aptx SHARED
-    APTX.c
-    libfreeaptx/freeaptx.c
-)
+# Build aptX if enabled
+if(BUILD_APTX)
+    add_library(aptx SHARED
+        APTX.c
+        libfreeaptx/freeaptx.c
+    )
+    target_link_libraries(aptx PRIVATE bluespy_codec_build)
+    target_include_directories(aptx PRIVATE libfreeaptx)
+endif()
+
 target_link_libraries(aptx PRIVATE bluespy_codec_build)
 target_include_directories(aptx PRIVATE libfreeaptx)
