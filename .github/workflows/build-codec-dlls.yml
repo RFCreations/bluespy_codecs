@@ -1,0 +1,51 @@
+name: Build AAC + aptX DLLs
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      codec:
+        description: "Which codec(s) to build"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - aac
+          - aptx
+          - both
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Configure with CMake
+        run: |
+          echo "Codec selected: ${{ github.event.inputs.codec }}"
+          if ("${{ github.event.inputs.codec }}" -eq "aac") {
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF
+          } elseif ("${{ github.event.inputs.codec }}" -eq "aptx") {
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON
+          } else {
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON
+          }
+        shell: powershell
+
+      - name: Build DLLs
+        run: cmake --build build --config Release
+        shell: powershell
+
+      - name: Upload DLLs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.codec }}-dlls
+          path: |
+            build/**/*.dll
+            build/**/*.lib
