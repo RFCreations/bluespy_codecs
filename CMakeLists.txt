@@ -16,13 +16,18 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
-# Find bluespy.h in blueSPY install directory
+# Find bluespy.h in blueSPY install directory or use ci-stubs version for CI
 find_path(BLUESPY_INCLUDE_DIR 
           NAMES bluespy.h
           PATHS "C:/Program Files/RFcreations/blueSPY")
-if (NOT BLUESPY_INCLUDE_DIR)
-    message(WARNING "bluespy.h not found, please provide the directory with -DMYLIB_INCLUDE_DIR=/path/to/include")
+
+if (BLUESPY_INCLUDE_DIR)
+    message(STATUS "Found blueSPY include dir: ${BLUESPY_INCLUDE_DIR}")
+else()
+    message(WARNING "bluespy.h not found in system. Falling back to ci-stubs copy.")
+    set(BLUESPY_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/ci-stubs/bluespy")
 endif()
+
 include_directories(${BLUESPY_INCLUDE_DIR})
 
 add_library(bluespy_codecs INTERFACE)
@@ -33,7 +38,10 @@ target_link_libraries(bluespy_codec_build INTERFACE bluespy_codecs)
 target_compile_definitions(bluespy_codec_build INTERFACE BLUESPY_CODEC_BUILD)
 
 # Build AAC if enabled
+
 if(BUILD_AAC)
+    # Force fdk-aac to build statically, no DLL
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
     add_library(aac SHARED
         AAC.c
     )
