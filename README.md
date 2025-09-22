@@ -4,7 +4,28 @@
 > This repository is unreleased, experimental and subject to change.
 
 This repository contains the source for some extra audio codecs for RFcreations' blueSPY software.
-These serve as an example for adding new custom codecs. In order to add a new one:
+These serve as an example for adding new custom codecs.
+
+### Adding AAC and/or aptX
+
+If you're only interested in decoding ACC and/or aptX, we've provided a GitHib actions workflow to make it as simple as possible:
+
+0. Click the **Actions** tab at the top of this page.
+1. In the left sidebar, click the workflow **Build AAC + aptX DLLs**.
+2. At the top right, click the green **Run workflow** button. Select which codec(s) you want from the dropdown, then click **Run workflow** again.
+3. GitHub Actions will start the job.
+4. Once the job is complete, scroll down to the **Artifacts** section and click on the download button.
+5. Unzip (extract) locally, then copy the files to a directory as specified below:
+   - Windows User: C:\\Users\\\<USER\>\\AppData\\Roaming\\RFcreations\\blueSPY\\audio_codecs\\
+   - Windows System: C:\\Program Files\\RFcreations\\blueSPY\\audio_codecs\\
+   - Mac User: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
+   - Mac System: /Applications/blueSPY.app/Contents/Frameworks/audio_codecs/
+   - Linux User: ~/.local/share/RFcreations/blueSPY/audio_codecs/
+   - Linux System: \<INSTALLATION_DIRECTORY\>/audio_codecs/
+6. Your blueSPY application will now be able to decode and replay AAC and/or aptX audio streams.
+
+
+### Adding new and/or custom codecs
 
 0. Ensure you have cmake and a suitable compiler/toolchain installed (MSVC/LLVM/GCC).
 1. Open a terminal (on windows you may need to use the Visual Studio developer prompt).
