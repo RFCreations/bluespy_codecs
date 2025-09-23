@@ -38,7 +38,6 @@ target_link_libraries(bluespy_codec_build INTERFACE bluespy_codecs)
 target_compile_definitions(bluespy_codec_build INTERFACE BLUESPY_CODEC_BUILD)
 
 # Build AAC if enabled
-
 if(BUILD_AAC)
     # Force fdk-aac to build statically, no DLL
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)

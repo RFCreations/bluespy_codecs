@@ -28,7 +28,7 @@ on:
 
 jobs:
   build-windows:
-    if: ${{ github.event.inputs.os == 'windows' || github.event.inputs.os == 'all' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'windows' || github.event.inputs.os == 'all' }}
     runs-on: windows-latest
 
     steps:
@@ -61,7 +61,7 @@ jobs:
             build/**/*.dll
   
   build-linux:
-    if: ${{ github.event.inputs.os == 'linux' || github.event.inputs.os == 'all' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'linux' || github.event.inputs.os == 'all' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -92,7 +92,7 @@ jobs:
           path: build/**/*.so
   
   build-macos:
-    if: ${{ github.event.inputs.os == 'macos' || github.event.inputs.os == 'all' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'macos' || github.event.inputs.os == 'all' }}
     runs-on: macos-latest
 
     steps:
