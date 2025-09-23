@@ -15,9 +15,20 @@ on:
           - aac
           - aptx
           - both
+      os:
+        description: "Which platform(s) to build for"
+        required: true
+        default: "all"
+        type: choice
+        options: 
+          - windows
+          - macos
+          - linux
+          - all
 
 jobs:
   build-windows:
+    if: ${{ github.event.inputs.os == 'windows' || github.event.inputs.os == 'all' }}
     runs-on: windows-latest
 
     steps:
@@ -42,10 +53,71 @@ jobs:
         run: cmake --build build --config Release
         shell: powershell
 
-      - name: Upload DLLs as artifact
+      - name: Upload Windows artifacts (.dll)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.codec }}-dlls
+          name: windows-${{ github.event.inputs.codec }}-dlls
           path: |
             build/**/*.dll
-            build/**/*.lib
+  
+  build-linux:
+    if: ${{ github.event.inputs.os == 'linux' || github.event.inputs.os == 'all' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang cmake
+
+      - name: Configure with CMake
+        run: |
+          if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF
+          elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON
+          else
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON
+          fi
+
+      - name: Build SOs
+        run: cmake --build build --config Release
+
+      - name: Upload Linux artifacts (.so)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ github.event.inputs.codec }}-sos
+          path: build/**/*.so
+  
+  build-macos:
+    if: ${{ github.event.inputs.os == 'macos' || github.event.inputs.os == 'all' }}
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install deps
+        run: brew install cmake ninja llvm
+
+      - name: Configure with CMake
+        run: |
+          if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF
+          elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON
+          else
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON
+          fi
+
+      - name: Build dylibs
+        run: cmake --build build --config Release
+
+      - name: Upload Mac artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ github.event.inputs.codec }}-dylibs
+          path: build/**/*.dylib
