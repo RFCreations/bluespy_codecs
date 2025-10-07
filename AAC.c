@@ -21,12 +21,12 @@ static struct AAC_handle{
 }handle = {.aac = NULL, .sequence_number = -1};
 
 bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy_audio_codec_info* info) {
-    bluespy_audio_codec_init_ret r = {.ret = -1, .format = {0, 0, 0}, .fns = {NULL, NULL}};
-    if(info->type != BLUESPY_AVDTP_AAC)
+    bluespy_audio_codec_init_ret r = {.error = -1, .format = {0, 0, 0}, .fns = {NULL, NULL}};
+    if(info->type != BLUESPY_CODEC_AAC)
         return r;
     
     if(info->data.AVDTP.len < 6) {
-        r.ret = -2;    
+        r.error = -2;    
         return r;
     }
 
@@ -66,7 +66,7 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     } else if (codec_data.chan_sample_rate >> 4 & 1) {
         r.format.sample_rate = 96000;
     } else {
-        r.ret = -3;
+        r.error = -3;
         return r;
     }
     
@@ -75,7 +75,7 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     } else if (codec_data.chan_sample_rate >> 3 & 1) {
         r.format.n_channels = 1;
     } else {
-        r.ret = -4;
+        r.error = -4;
         return r;
     }
     r.format.bits_per_sample = 16;
@@ -83,16 +83,16 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     handle.aac = aacDecoder_Open(TT_MP4_LATM_MCP1, 1);
 
     if (aacDecoder_SetParam(handle.aac, AAC_PCM_MIN_OUTPUT_CHANNELS, r.format.n_channels) != AAC_DEC_OK) {
-        r.ret = -5;
+        r.error = -5;
         return r;
     }
     
     if (aacDecoder_SetParam(handle.aac, AAC_PCM_MAX_OUTPUT_CHANNELS, r.format.n_channels) != AAC_DEC_OK) {
-        r.ret = -6;
+        r.error = -6;
         return r;
     }
     
-    r.ret = 0;
+    r.error = 0;
     r.fns.decode = codec_decode;
     r.fns.deinit = codec_deinit;
 
@@ -106,7 +106,10 @@ void codec_deinit(bluespy_audiostream_id id) {
     }
 } 
 
-BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, const uint8_t* payload, const uint32_t payload_len) 
+BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, 
+                                                                 const uint8_t* payload,
+                                                                 const uint32_t payload_len,
+                                                                 int32_t event_id) 
 {
     static uint8_t out_buf[32768];   // 32 KB
     
@@ -164,6 +167,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiost
     if (out_data_len > 0) {
         out.data = out_buf;
         out.len  = out_data_len;
+        out.has_metadata = true;
+        out.source_id = event_id;
     }
 
     return out;

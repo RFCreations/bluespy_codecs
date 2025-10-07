@@ -72,12 +72,16 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id);
  * @param[in] coded_len
  * @param[out] uncoded_data The output should be 16 bit audio data, channels interleaved
  * @param[in] uncoded_len The total space in the output buffer, not per channel.
+ * @param[in] event_id Unique identifier for this event from the capture system.
  * @return Total number of returned samples, or BLUESPY_CODEC_ERRORS if negative.
  *
  * This function decodes an on air frame of codec data and produces a frame of audio into an
  * external buffer. For A2DP, the coded_data will point to the start of the RTP header.
  */
-BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, const uint8_t* payload, const uint32_t payload_len);
+BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, 
+                                                                 const uint8_t* payload,
+                                                                 const uint32_t payload_len,
+                                                                 int32_t event_id);
 
 #ifdef __cplusplus
 }

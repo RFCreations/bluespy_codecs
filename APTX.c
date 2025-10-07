@@ -24,12 +24,12 @@ static struct APTX_handle {
 } handle = {.aptx = NULL, .hd = false, .sample_rate = 0, .n_channels = 0, .last_timestamp = 0, .total_samples = 0};
 
 bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy_audio_codec_info* info) {
-    bluespy_audio_codec_init_ret r = { .ret = -1, .format = {0, 0, 0}, .fns = {NULL, NULL} };
+    bluespy_audio_codec_init_ret r = { .error = -1, .format = {0, 0, 0}, .fns = {NULL, NULL} };
 
-    if (info->type != BLUESPY_AVDTP_APTX && info->type != BLUESPY_AVDTP_APTX_HD)
+    if (info->type != BLUESPY_CODEC_APTX && info->type != BLUESPY_CODEC_APTX_HD)
         return r;
 
-    handle.hd = (info->type == BLUESPY_AVDTP_APTX_HD);
+    handle.hd = (info->type == BLUESPY_CODEC_APTX_HD);
 
     // aptX is always stereo
     r.format.n_channels = 2;
@@ -60,7 +60,7 @@ bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy
     if (!handle.aptx)
         return r;
 
-    r.ret = 0;
+    r.error = 0;
     r.fns.decode = codec_decode;
     r.fns.deinit = codec_deinit;
     
@@ -79,7 +79,10 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id) {
     }
 }
 
-BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, const uint8_t* payload, const uint32_t payload_len) {
+BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, 
+                                                                 const uint8_t* payload,
+                                                                 const uint32_t payload_len,
+                                                                 int32_t event_id) {
     static uint8_t  out_buf[32768];      // raw aptX PCM (24-bit packed)
     static int16_t  final_output[32768]; // converted PCM16
     bluespy_audio_codec_decoded_audio out = { .data = NULL, .len = 0 };
@@ -87,7 +90,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiost
     if (payload_len == 0)
         return out;
 
-    // The data appears to be pure aptX without any headers
+    // The data is pure aptX without any headers
     const uint8_t* coded_data = payload;
     size_t coded_len = payload_len;
 
@@ -124,6 +127,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiost
 
     out.data = (uint8_t*)final_output;
     out.len  = final_samples * sizeof(int16_t);
+    out.has_metadata = true;
+    out.source_id = event_id;
 
     // Update sample counter for debugging
     handle.total_samples += final_samples / handle.n_channels;
