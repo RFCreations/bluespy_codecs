@@ -51,7 +51,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_lib_info init();
  * This function initialises a codec from the bluetooth configuration, and returns a handle to the
  * decoder or an error.
  */
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret codec_init(bluespy_audiostream_id id, const bluespy_audio_codec_info* info);
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id, const bluespy_audio_codec_info* info);
 
 /**
  * @brief bluespy_codec_deinit
@@ -81,7 +81,7 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id);
 BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, 
                                                                  const uint8_t* payload,
                                                                  const uint32_t payload_len,
-                                                                 int32_t event_id);
+                                                                 bluespy_event_id event_id);
 
 #ifdef __cplusplus
 }

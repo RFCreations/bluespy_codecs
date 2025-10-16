@@ -5,6 +5,7 @@ project(bluespy_codecs)
 
 option(BUILD_AAC "Build AAC codec DLL" ON)
 option(BUILD_APTX "Build aptX codec DLL" ON)
+option(BUILD_LDAC "Build LDAC codec DLL" ON)
 
 # set(CMAKE_CXX_STANDARD 11)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,5 +59,26 @@ if(BUILD_APTX)
     target_include_directories(aptx PRIVATE libfreeaptx)
 endif()
 
-target_link_libraries(aptx PRIVATE bluespy_codec_build)
-target_include_directories(aptx PRIVATE libfreeaptx)
+# Build LDAC if enabled
+if(BUILD_LDAC)
+    add_library(ldac SHARED
+        LDAC.c
+        libldacdec/libldacdec.c
+        libldacdec/bit_allocation.c
+        libldacdec/huffCodes.c
+        libldacdec/bit_reader.c
+        libldacdec/utility.c
+        libldacdec/imdct.c
+        libldacdec/spectrum.c
+    )
+
+    target_include_directories(ldac PRIVATE
+        libldacdec
+    )
+
+    if (UNIX)
+        target_link_libraries(ldac PRIVATE m)
+    endif()
+
+    target_link_libraries(ldac PRIVATE bluespy_codec_build)
+endif()
