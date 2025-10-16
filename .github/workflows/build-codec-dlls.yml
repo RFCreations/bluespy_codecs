@@ -1,4 +1,4 @@
-name: Build AAC + aptX DLLs
+name: Build Codec Dynamic Libraries
 
 on:
   pull_request:
@@ -9,18 +9,19 @@ on:
       codec:
         description: "Which codec(s) to build"
         required: true
-        default: "both"
+        default: "all"
         type: choice
         options:
           - aac
           - aptx
-          - both
+          - ldac
+          - all
       os:
         description: "Which platform(s) to build for"
         required: true
         default: "all"
         type: choice
-        options: 
+        options:
           - windows
           - macos
           - linux
@@ -41,11 +42,13 @@ jobs:
         run: |
           echo "Codec selected: ${{ github.event.inputs.codec }}"
           if ("${{ github.event.inputs.codec }}" -eq "aac") {
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF
           } elseif ("${{ github.event.inputs.codec }}" -eq "aptx") {
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF
+          } elseif ("${{ github.event.inputs.codec }}" -eq "ldac") {
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON
           } else {
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON
           }
         shell: powershell
 
@@ -59,7 +62,7 @@ jobs:
           name: windows-${{ github.event.inputs.codec }}-dlls
           path: |
             build/**/*.dll
-  
+
   build-linux:
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'linux' || github.event.inputs.os == 'all' }}
     runs-on: ubuntu-latest
@@ -75,11 +78,13 @@ jobs:
       - name: Configure with CMake
         run: |
           if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF
           elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF
+          elif [ "${{ github.event.inputs.codec }}" = "ldac" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON
           else
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON
           fi
 
       - name: Build SOs
@@ -90,7 +95,7 @@ jobs:
         with:
           name: linux-${{ github.event.inputs.codec }}-sos
           path: build/**/*.so
-  
+
   build-macos:
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'macos' || github.event.inputs.os == 'all' }}
     runs-on: macos-latest
@@ -106,11 +111,13 @@ jobs:
       - name: Configure with CMake
         run: |
           if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF
           elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF
+          elif [ "${{ github.event.inputs.codec }}" = "ldac" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON
           else
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON
           fi
 
       - name: Build dylibs
