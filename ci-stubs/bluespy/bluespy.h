@@ -954,6 +954,84 @@ BLUESPY_API bluespy_error bluespy_list_keys(bluespy_key** keys, size_t* count);
  */
 BLUESPY_API bluespy_error bluespy_free_keys(bluespy_key* keys, size_t count);
 
+/*------------------------------------------------------------------------------
+ * Bluetooth AVDTP Media Codec Capability structures
+ * Derived from Bluetooth A2DP Specifcation
+ *----------------------------------------------------------------------------*/
+
+/**
+ * @brief AVDTP Service Category identifiers
+ */
+typedef enum AVDTP_Service_Category_E : uint8_t {
+    AVDTP_Service_Not_Applicable      = 0,
+    AVDTP_Service_Media_Transport     = 1,
+    AVDTP_Service_Reporting           = 2,
+    AVDTP_Service_Recovery            = 3,
+    AVDTP_Service_Content_Protection  = 4,
+    AVDTP_Service_Header_Compression  = 5,
+    AVDTP_Service_Multiplexing        = 6,
+    AVDTP_Service_Media_Codec         = 7,
+    AVDTP_Service_Delay_Reporting     = 8,
+} AVDTP_SERVICE_CATEGORY_E;
+
+/**
+ * @brief AVDTP Media Type Values
+ */
+typedef enum AVDTP_Media_Type_e : uint8_t {
+    AVDTP_MediaType_Audio       = 0,
+    AVDTP_MediaType_Video       = 1,
+    AVDTP_MediaType_Multimedia  = 2,
+} AVDTP_MEDIA_TYPE_E;
+
+/**
+ * @brief AVDTP Media Codec Types
+ */
+typedef enum AVDTP_MEDIA_CODEC_TYPE_E : uint8_t {
+    AVDTP_Codec_SBC              = 0,
+    AVDTP_Codec_MPEG_12_Audio    = 1,
+    AVDTP_Codec_MPEG_24_AAC      = 2,
+    AVDTP_Codec_MPEG_D_USAC      = 3,
+    AVDTP_Codec_ATRAC_Family     = 4,
+    AVDTP_Codec_Vendor_Specific  = 0xFF
+} AVDTP_MEDIA_CODEC_TYPE_E;
+
+/**
+ * @brief AVDTP Media Codec Service Capability structure
+ * 
+ * Represents the "Media Codec" capability element signalled in A2DP.
+ * 
+ * If @ref Media_Codec_Type is @ref AVDTP_Codec_Vendor_Specific, then the
+ * first four bytes of @ref Media_Codec_Specific_Information encode a 32-bit
+ * Vendor ID (big-endian), and the following byte encodes a Vendor-specific Codec ID.
+ * 
+ * @note This structure uses a flexible array member. The actual size depends on
+ * the Length_Of_Service_Capabilities field.
+ */
+typedef struct AVDTP_Service_Capabilities_Media_Codec_t {
+    AVDTP_SERVICE_CATEGORY_E Service_Category;
+    uint8_t Length_Of_Service_Capabilities;
+    uint8_t RFU : 4;
+    AVDTP_MEDIA_TYPE_E Media_Type : 4;
+    AVDTP_MEDIA_CODEC_TYPE_E Media_Codec_Type;
+    uint8_t Media_Codec_Specific_Information[1];
+} AVDTP_Service_Capabilities_Media_Codec_t;
+
+/*------------------------------------------------------------------------------
+ * Bluespy Codec Interface Definitions
+ *----------------------------------------------------------------------------*/
+
+/**
+ * @brief Defines the API version for blueSPY Audio Codec Interface
+ * 
+ * Codec shared libraries must set bluespy_audio_codec_lib_info::api_version to this 
+ * value when returning from their init() function. This allows the host to verify 
+ * compatibility between itself and the loaded codec library.
+ * 
+ * API version history:
+ * - Version 1: Initial release (supports AVDTP/A2DP containers)
+ */
+#define BLUESPY_AUDIO_API_VERSION 1
+
 /**
  * @brief Library-level information describing a codec implementation. 
  * 
@@ -962,14 +1040,14 @@ BLUESPY_API bluespy_error bluespy_free_keys(bluespy_key* keys, size_t count);
  * a library version for compatibility checking.
  */
 typedef struct bluespy_audio_codec_lib_info {
-    int api_version;
-    const char* codec_name;
+    int api_version; // <- Must be set to BLUESPY_AUDIO_API_VERSION
+    const char* codec_name; // <- Human-readable codec name (e.g., "AAC", "aptX", "LDAC")
 } bluespy_audio_codec_lib_info;
 
 /**
  * @brief Function pointer type for codec library initialisation function.
  * 
- * Each codec library must export a symbol named 'init()' matching this signature.
+ * Each codec library must export a C-linkage symbol named 'init()' matching this signature.
  * It provides information about the library and its capabilities.
  * 
  * @return A structure containing the codec libray information.
@@ -988,30 +1066,25 @@ typedef enum bluespy_codec_container {
 } bluespy_codec_container;
 
 /**
- * @brief Enumeration of supported codec identifiers.
- * 
- * This identifies the specific audio codec used in a stream.
- */
-typedef enum bluespy_codec_id {
-    BLUESPY_CODEC_AAC,
-    BLUESPY_CODEC_APTX,
-    BLUESPY_CODEC_APTX_HD,
-    BLUESPY_CODEC_OTHER
-} bluespy_codec_id;
-
-/**
  * @brief Describes the codec configuration for a given audio stream.
  * 
  * This structure encapsulates codec-specific configuration blocks typically
- * obtained from Bluetooth signalling (A2DP or LEA). The 'container' field 
- * determines which member of the 'data' union is valid. 
+ * obtained from Bluetooth signalling (A2DP or LEA). The @p 'container' field 
+ * determines which member of the @p 'data' union is valid.
+ * 
+ * For Classic Bluetooth (A2DP/AVDTP), the entire Media Codec Service Capability element 
+ * is provided. Codec implementations may inspect its @ref Media_Codec_Type field to
+ * determine the codec, or, for vendor‑specific codecs, parse the vendor and
+ * codec IDs from @ref Media_Codec_Specific_Information.
+ * 
+ * @note The pointers in this structure are only valid during the new_codec_stream() call.
+ * Codecs must copy any needed configuration data into their own state.
  */
 typedef struct bluespy_audio_codec_info {
-    bluespy_codec_container container; // discriminant for union
-    bluespy_codec_id type;
+    bluespy_codec_container container; // <- Indicates AVDTP (Classic) or LEA
     union {
         struct {
-            const uint8_t* AVDTP_Media_Codec_Specific_Information;
+            const AVDTP_Service_Capabilities_Media_Codec_t* Media_Codec_Capability;
             uint32_t len;
         } AVDTP;
         struct {
@@ -1026,24 +1099,29 @@ typedef struct bluespy_audio_codec_info {
  * 
  * Each codec must report its decoded sample format as part of its 
  * initialisation return structure.
+ *
+ * @note Currently, only 16-bit signed integer PCM (little-endian) is supported.
+ * The bits_per_sample field must be set to 16. Future API versions may 
+ * support additional formats (24-bit, 32-bit float, etc.).
  */
 typedef struct bluespy_audio_codec_decoded_format {
-    uint32_t sample_rate;
-    uint8_t n_channels;
+    uint32_t sample_rate; // <- Sample rate in Hz
+    uint8_t n_channels; // Number of audio channels (1=mono, 2=stereo)
     uint8_t bits_per_sample;
 } bluespy_audio_codec_decoded_format;
 
 /**
- * @brief Represents a buffer of decoded PCM audio and optional metadata.
+ * @brief Represents a buffer of decoded PCM audio.
  * 
  * Returned by the codec 'decode()' function for each audio frame.
+ * 
+ * @note The data pointer must remain valid until the next decode() call for the same stream,
+ * or until deinit() is called. Codecs typically use a static buffer per stream.
  */
 typedef struct bluespy_audio_codec_decoded_audio {
-    const uint8_t* data;
-    uint32_t len;
-
-    bool has_metadata;
-    uint64_t source_id;
+    const uint8_t* data; // <- Pointer to decoded PCM data (int16_t samples, little-endian, interleaved)
+    uint32_t len; // <- Length of decoded data in bytes (not samples)
+    bluespy_event_id source_id; // <- Event ID passed in from decode() call, for packet correlation
 } bluespy_audio_codec_decoded_audio;
 
 /**
@@ -1053,12 +1131,17 @@ typedef struct bluespy_audio_codec_decoded_audio {
  * The decoder should maintain any necessary state to handle continuity or packet
  * loss concealment.
  * 
- * @param id Identifier for the active audio stream.
+ * @param id Identifier for the active audio stream. Multiple concurrent streams may exist,
+ *           so codecs must maintain separate state per stream ID.
  * @param payload Pointer to the encoded audio packet or frame.
  * 
- * For Classic Bluetooth (A2DP/AVDTP), this buffer represents the contents of a single
- * L2CAP Service Data Unit (SDU) carrying an AVDTP media packet. This usually contains an
- * RTP header (12 bytes plus optional CSRC fields) followed by codec-specific frame data.
+ * **For Classic Bluetooth (A2DP/AVDTP):** This buffer represents the contents of a single
+ * L2CAP Service Data Unit (SDU) carrying an AVDTP media packet. This typically contains:
+ * - RTP header (12 bytes + 4 bytes per CSRC)
+ * - Optional codec-specific headers (e.g., LDAC sync byte 0xAA)
+ * - One or more codec frames
+ * 
+ * Codecs are responsible for parsing/skipping RTP headers if present.
  * 
  * For Bluetooth LE Audio, the buffer represents the contents of a single ISOAL SDU,
  * containing one codec frame (e.g. LC3) as transmitted over the ISO isochronous channel.
@@ -1070,23 +1153,26 @@ typedef struct bluespy_audio_codec_decoded_audio {
  * 
  * @param payload_len Length of the encoded audio packet in bytes.
  * @param event_id Unique identifier for this L2CAP/ISOAL SDU (see payload parameter above) from the capture.
- *  
- * This allows the codec to return metadata that can be used to correlate
- * decoded audio with captured packets.
+ *                 This ID can be stored in the returned bluespy_audio_codec_decoded_audio
+ *                 to correlate decoded audio samples with captured packets for visualization.
  * 
  * @return A structure containing decoded PCM audio data and any metadata.
  */
 typedef bluespy_audio_codec_decoded_audio (*bluespy_audio_decode_t)(bluespy_audiostream_id id, 
                                                                     const uint8_t* payload,
                                                                     const uint32_t payload_len,
-                                                                    int32_t event_id);
+                                                                    bluespy_event_id event_id);
 
 /**
  * @brief Function pointer type for codec_deinit function.
  * 
  * Called when an audio stream ends in order to free codec state and resources.
+ * After this call, the stream ID will not be used again for this codec instance.
  * 
  * @param id Identifier for the audio stream that is to be deinitialised.
+ * 
+ * @note This function must handle being called multiple times with the same ID gracefully
+ * (should be a no-op if already deinitialized).
  */
 typedef void (*bluespy_audio_codec_deinit_t)(bluespy_audiostream_id id);
 
@@ -1094,6 +1180,7 @@ typedef void (*bluespy_audio_codec_deinit_t)(bluespy_audiostream_id id);
  * @brief Collection of function pointers exposed by a codec implementation.
  * 
  * Each initialised codec must provide a decode and deinit function via this structure.
+ * Both function pointers must be non-NULL.
  */
 typedef struct bluespy_audio_codec_funcs {
     bluespy_audio_decode_t decode;
@@ -1112,16 +1199,32 @@ typedef struct bluespy_audio_codec_init_ret {
 } bluespy_audio_codec_init_ret;
 
 /**
- * @brief Function pointer type for initialising a new codec instance.
+ * @brief Function pointer type for new_codec_stream function.
  * 
- * This function is called when a Bluetooth audio stream is started. 
- * It should allocate and initialise codec-specific state and return 
- * decode capabilities and handlers.
+ * This function is called when a Bluetooth audio stream is detected and needs to be decoded.
+ * The codec should:
+ * 1. Check if it supports the provided codec configuration
+ * 2. Allocate and initialise codec-specific state for this stream
+ * 3. Return the decoded format and function pointers
  * 
- * @param id Identifier for the newly created audio stream.
- * @param infp Pointer to codec configuration information for this stream.
+ * Each codec library must export a C-linkage symbol named 'new_codec_stream' matching this signature:
+ * @code
+ * extern "C" bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id, 
+ *                                                           const bluespy_audio_codec_info* info);
+ * @endcode
  * 
- * @return An initialisation result containing the decode format, function pointers, and error code. 
+ * @param id Identifier for the newly created audio stream. The codec must use this ID to maintain
+ *           separate state for concurrent streams. The same ID will be passed to all subsequent
+ *           decode() and deinit() calls for this stream.
+ * @param info Pointer to codec configuration information for this stream. This pointer is only
+ *             valid during this function call - codecs must copy any needed data.
+ * 
+ * @return An initialisation result. On success (error == 0), the format and fns fields must be
+ *         populated with valid values. On failure (error < 0), the codec should return immediately
+ *         without allocating resources, as the stream will be offered to other codec implementations.
+ *
+ * @note If the codec does not support the provided configuration (e.g., wrong codec type,
+ *       unsupported sample rate), it should return error = -1 to allow other codecs to try.
  */
 typedef bluespy_audio_codec_init_ret (*bluespy_audio_codec_init_t)(bluespy_audiostream_id id, const bluespy_audio_codec_info* info);
 
@@ -1159,4 +1262,3 @@ inline bluespy_error set_config(const char* IXIT_file, const char* ICS_file = nu
 #endif
 
 #endif
-
