@@ -4,3 +4,6 @@
 [submodule "fdk-aac-stripped"]
 	path = fdk-aac-stripped
 	url = https://github.com/RFCreations/fdk-aac-stripped.git
+[submodule "libldacdec"]
+	path = libldacdec
+	url = https://github.com/hegdi/libldacdec.git
