@@ -49,7 +49,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
                                                           const bluespy_audio_codec_info* info) {
     bluespy_audio_codec_init_ret r = { .error = -1, .format = {0, 0, 0}, .fns = {NULL, NULL} };
 
-    const AVDTP_Service_Capabilities_Media_Codec_t* cap = info->data.AVDTP.Media_Codec_Capability;
+    const AVDTP_Service_Capabilities_Media_Codec_t* cap = info->config;
     
     if(cap->Media_Codec_Type != AVDTP_Codec_Vendor_Specific)
         return r;
@@ -68,7 +68,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
         return r;
     }
     
-    if (info->data.AVDTP.len < 2) {
+    if (info->config_len < 2) {
         r.error = -2;
         return r;
     }

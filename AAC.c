@@ -57,10 +57,12 @@ static struct AAC_handle* get_handle(bluespy_audiostream_id id) {
 bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id, const bluespy_audio_codec_info* info) {
     bluespy_audio_codec_init_ret r = {.error = -1, .format = {0, 0, 0}, .fns = {NULL, NULL}};
     
-    if(info->data.AVDTP.Media_Codec_Capability->Media_Codec_Type != AVDTP_Codec_MPEG_24_AAC)
+    const AVDTP_Service_Capabilities_Media_Codec_t* cap = (const AVDTP_Service_Capabilities_Media_Codec_t*) info->config;
+    
+    if(cap->Media_Codec_Type != AVDTP_Codec_MPEG_24_AAC)
         return r;
     
-    if(info->data.AVDTP.len < 6) {
+    if(info->config_len < 6) {
         r.error = -2;    
         return r;
     }
@@ -80,7 +82,7 @@ bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id, const b
         uint8_t bit_rate_ms;
     } codec_data;
 
-    memcpy(&codec_data, info->data.AVDTP.Media_Codec_Capability->Media_Codec_Specific_Information, 6);
+    memcpy(&codec_data, cap->Media_Codec_Specific_Information, 6);
 
     if (codec_data.sample_rate_ls >> 7 & 1) {
         r.format.sample_rate = 8000;
