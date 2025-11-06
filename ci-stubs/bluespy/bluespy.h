@@ -955,68 +955,6 @@ BLUESPY_API bluespy_error bluespy_list_keys(bluespy_key** keys, size_t* count);
 BLUESPY_API bluespy_error bluespy_free_keys(bluespy_key* keys, size_t count);
 
 /*------------------------------------------------------------------------------
- * Bluetooth AVDTP Media Codec Capability structures
- * Derived from Bluetooth A2DP Specifcation
- *----------------------------------------------------------------------------*/
-
-/**
- * @brief AVDTP Service Category identifiers
- */
-typedef enum AVDTP_Service_Category_E : uint8_t {
-    AVDTP_Service_Not_Applicable      = 0,
-    AVDTP_Service_Media_Transport     = 1,
-    AVDTP_Service_Reporting           = 2,
-    AVDTP_Service_Recovery            = 3,
-    AVDTP_Service_Content_Protection  = 4,
-    AVDTP_Service_Header_Compression  = 5,
-    AVDTP_Service_Multiplexing        = 6,
-    AVDTP_Service_Media_Codec         = 7,
-    AVDTP_Service_Delay_Reporting     = 8,
-} AVDTP_SERVICE_CATEGORY_E;
-
-/**
- * @brief AVDTP Media Type Values
- */
-typedef enum AVDTP_Media_Type_e : uint8_t {
-    AVDTP_MediaType_Audio       = 0,
-    AVDTP_MediaType_Video       = 1,
-    AVDTP_MediaType_Multimedia  = 2,
-} AVDTP_MEDIA_TYPE_E;
-
-/**
- * @brief AVDTP Media Codec Types
- */
-typedef enum AVDTP_MEDIA_CODEC_TYPE_E : uint8_t {
-    AVDTP_Codec_SBC              = 0,
-    AVDTP_Codec_MPEG_12_Audio    = 1,
-    AVDTP_Codec_MPEG_24_AAC      = 2,
-    AVDTP_Codec_MPEG_D_USAC      = 3,
-    AVDTP_Codec_ATRAC_Family     = 4,
-    AVDTP_Codec_Vendor_Specific  = 0xFF
-} AVDTP_MEDIA_CODEC_TYPE_E;
-
-/**
- * @brief AVDTP Media Codec Service Capability structure
- * 
- * Represents the "Media Codec" capability element signalled in A2DP.
- * 
- * If @ref Media_Codec_Type is @ref AVDTP_Codec_Vendor_Specific, then the
- * first four bytes of @ref Media_Codec_Specific_Information encode a 32-bit
- * Vendor ID (big-endian), and the following byte encodes a Vendor-specific Codec ID.
- * 
- * @note This structure uses a flexible array member. The actual size depends on
- * the Length_Of_Service_Capabilities field.
- */
-typedef struct AVDTP_Service_Capabilities_Media_Codec_t {
-    AVDTP_SERVICE_CATEGORY_E Service_Category;
-    uint8_t Length_Of_Service_Capabilities;
-    uint8_t RFU : 4;
-    AVDTP_MEDIA_TYPE_E Media_Type : 4;
-    AVDTP_MEDIA_CODEC_TYPE_E Media_Codec_Type;
-    uint8_t Media_Codec_Specific_Information[1];
-} AVDTP_Service_Capabilities_Media_Codec_t;
-
-/*------------------------------------------------------------------------------
  * Bluespy Codec Interface Definitions
  *----------------------------------------------------------------------------*/
 
@@ -1062,36 +1000,35 @@ typedef bluespy_audio_codec_lib_info (*bluespy_audio_codec_lib_init_t)(void);
  */
 typedef enum bluespy_codec_container {
     BLUESPY_CODEC_AVDTP,
-    BLUESPY_CODEC_LEA
+    BLUESPY_CODEC_LEA,
+    BLUESPY_CODEC_LEA_BIS
 } bluespy_codec_container;
 
 /**
  * @brief Describes the codec configuration for a given audio stream.
- * 
- * This structure encapsulates codec-specific configuration blocks typically
- * obtained from Bluetooth signalling (A2DP or LEA). The @p 'container' field 
- * determines which member of the @p 'data' union is valid.
- * 
- * For Classic Bluetooth (A2DP/AVDTP), the entire Media Codec Service Capability element 
- * is provided. Codec implementations may inspect its @ref Media_Codec_Type field to
- * determine the codec, or, for vendor‑specific codecs, parse the vendor and
- * codec IDs from @ref Media_Codec_Specific_Information.
- * 
- * @note The pointers in this structure are only valid during the new_codec_stream() call.
- * Codecs must copy any needed configuration data into their own state.
+ *
+ * The configuration data pointed to by @ref config points to container‑specific
+ * payloads as obtained from Bluetooth signalling. The meaning depends on @ref container:
+ *
+ * - **BLUESPY_CODEC_AVDTP**: @ref config points to a full
+ *   `AVDTP_Service_Capabilities_Media_Codec_t` structure (including its entire
+ *   `Media_Codec_Specific_Information` block).
+ *
+ * - **BLUESPY_CODEC_LEA**: @ref config points to the `Codec_Specific_Configuration`
+ *   part of the ASE Control Point (typically from a Set Configuration command).
+ *
+ * - **BLUESPY_CODEC_LEA_BIS**: @ref config points to a complete BASE (Broadcast Audio
+ *   Stream Endpoint) data structure, as transmitted in BIG Info and BASE PDUL.
+ *
+ * In all cases, @ref config_len bytes are valid.
+ *
+ * @note Pointers are transient: valid only during the `new_codec_stream()` call.
+ *       Implementations must copy data they need.
  */
 typedef struct bluespy_audio_codec_info {
-    bluespy_codec_container container; // <- Indicates AVDTP (Classic) or LEA
-    union {
-        struct {
-            const AVDTP_Service_Capabilities_Media_Codec_t* Media_Codec_Capability;
-            uint32_t len;
-        } AVDTP;
-        struct {
-            const uint8_t* ASE_Control_Point_Config_Codec;
-            uint32_t len;
-        } LEA;
-    } data;
+    bluespy_codec_container container;
+    const void* config;     // <- pointer to container‑specific data block
+    uint32_t config_len;    // <- length of container‑specific block
 } bluespy_audio_codec_info;
 
 /**
