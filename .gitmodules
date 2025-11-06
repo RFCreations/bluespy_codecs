@@ -7,3 +7,6 @@
 [submodule "libldacdec"]
 	path = libldacdec
 	url = https://github.com/hegdi/libldacdec.git
+[submodule "liblc3"]
+	path = liblc3
+	url = https://github.com/google/liblc3.git

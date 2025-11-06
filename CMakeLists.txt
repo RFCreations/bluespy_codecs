@@ -6,6 +6,7 @@ project(bluespy_codecs)
 option(BUILD_AAC "Build AAC codec DLL" ON)
 option(BUILD_APTX "Build aptX codec DLL" ON)
 option(BUILD_LDAC "Build LDAC codec DLL" ON)
+option(BUILD_LC3 "Build LC3 codec DLL" ON)
 
 # set(CMAKE_CXX_STANDARD 11)
 # set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -81,4 +82,33 @@ if(BUILD_LDAC)
     endif()
 
     target_link_libraries(ldac PRIVATE bluespy_codec_build)
+endif()
+
+# Build LC3 if enabled
+if(BUILD_LC3)
+    file(GLOB LIBLC3_SRC
+        liblc3/src/*.c
+        # Optional: include subdirectories if needed
+        liblc3/src/*.s
+    )
+
+    add_library(liblc3 STATIC ${LIBLC3_SRC})
+    target_include_directories(liblc3 PUBLIC liblc3/include)
+
+    add_library(lc3 SHARED
+        LC3.c
+    )
+    target_include_directories(lc3 PRIVATE
+        liblc3/include
+    )
+
+    if (UNIX)
+        target_link_libraries(liblc3 PRIVATE m)
+        target_link_libraries(lc3 PRIVATE m)
+    endif()
+
+    target_link_libraries(lc3 PRIVATE
+        bluespy_codec_build
+        liblc3
+    )
 endif()

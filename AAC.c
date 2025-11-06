@@ -1,10 +1,11 @@
 // Copyright RF Creations Ltd 2023
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
-// #include "bluespy.h"
-// #include "bluespy_codec_defs.h"
 #include "bluespy_codec_interface.h"
+#include "codec_structures.h"
+
 #include "aacdecoder_lib.h"
+
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
