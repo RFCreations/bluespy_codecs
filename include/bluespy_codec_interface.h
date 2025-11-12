@@ -33,55 +33,81 @@ extern "C" {
 #endif
 
 /**
- * @brief bluespy_codec_info
- * @return bluespy_codec_info_return
+ * @brief Initialise a codec plug-in library.
  *
- * Return generic information about the codec
+ * Called once immediately after the shared library is loaded.
+ * The implementation must populate the returned structure with its
+ * API version (must equal BLUESPY_AUDIO_API_VERSION) and a 
+ * human-readable codec name.
+ * 
+ * Example:
+ * @code
+ * BLUESPY_CODEC_API bluespy_audio_codec_lib_info init() {
+ *     return (bluespy_audio_codec_lib_info){
+ *         .api_version = BLUESPY_AUDIO_API_VERSION,
+ *         .codec_name  = "AAC"
+ *     };
+ * }
+ * @endcode
+ * 
+ * @return codec library information.
  */
-BLUESPY_CODEC_API bluespy_audio_codec_lib_info init();
+BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void);
 
 /**
- * @brief bluespy_codec_init
- * @param[in] transport Type of bluetooth audio
- * @param[in] media_codec_type Codec identifier, e.g. Audio Codec ID (BLUESPY_CODEC_A2DP_TYPES)
- * @param[in] codec_specific_data Opaque block of data from setup
- * @param[in] codec_specific_data_len
- * @return bluespy_codec_init_return object containing a handle or error.
- *
- * This function initialises a codec from the bluetooth configuration, and returns a handle to the
- * decoder or an error.
+ * @brief Create and configure a new codec instance for a detected stream.
+ * 
+ * The host calls this function when a Bluetooth audio stream has been
+ * discovered and requires decoding.
+ * 
+ * @param stream_id Unique identifier assigned to this stream by the host.
+ * @param info Pointer to container‑specific codec configuration (valid only for the duration of this call).
+ * 
+ * @return 
+ *  - On success: structure with error == 0 and valid function pointers. 
+ *  - On failure: structure with error < 0; no resources must remain allocated.
  */
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id, const bluespy_audio_codec_info* info);
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info);
+
 
 /**
- * @brief bluespy_codec_deinit
- * @param[in] transport Type of bluetooth audio
- * @param[in] media_codec_type Codec identifier, e.g. Audio Codec ID (BLUESPY_CODEC_A2DP_TYPES)
- * @param[in] codec_specific_data Opaque block of data from setup
- * @param[in] codec_specific_data_len
- * @return bluespy_audio_codec_deinit_t object.
- *
- * This function deinitialises a codec.
+ * @brief Decode on codec frame or sequence from the capture. 
+ * 
+ * @param[in] stream_id Unique identifier assigned to this stream by the host.
+ * @param[in] payload Pointer to encoded bytes.
+ * @param[in] payload_len Length in bytes of @p payload.
+ * @param[out] event_id Capture‑event identifier corresponding to this SDU.
+ * @param sequence_number 64‑bit monotonically‑increasing sequence counter for this SDU, assigned by the host.
+ * 
+ * @note
+ *   - **Classic Bluetooth (AVDTP/A2DP):**  
+ *     Each call represents one L2CAP SDU = one AVDTP Media Packet, usually
+ *     containing an RTP header (12 + 4×CSRC bytes) followed by one or more
+ *     codec frames.
+ *   - **LE Audio (CIS/BIS):**  
+ *     Each call provides a reconstructed ISOAL SDU as seen at the host layer.
+ *     Depending on ISOAL segmentation rules, one SDU can hold multiple codec
+ *     frames or a partial frame. The decoder must handle reconstruction.
  */
-BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id);
 
+BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, 
+                                    const uint8_t* payload,
+                                    const uint32_t payload_len,
+                                    bluespy_event_id event_id,
+                                    uint64_t sequence_number);
+    
 /**
- * @brief bluespy_codec_decode
- * @param[in] handle
- * @param[in] coded_data
- * @param[in] coded_len
- * @param[out] uncoded_data The output should be 16 bit audio data, channels interleaved
- * @param[in] uncoded_len The total space in the output buffer, not per channel.
- * @param[in] event_id Unique identifier for this event from the capture system.
- * @return Total number of returned samples, or BLUESPY_CODEC_ERRORS if negative.
- *
- * This function decodes an on air frame of codec data and produces a frame of audio into an
- * external buffer. For A2DP, the coded_data will point to the start of the RTP header.
+ * @brief De‑initialise and release all state for a codec stream.
+ * 
+ * Called when a stream ends or is no longer required.  Implementations must
+ * free any dynamic allocations and may close decoder handles.
+ * The function must tolerate being called multiple times for the same ID,
+ * performing no operation after the first successful cleanup.
+ * 
+ * @param[in] stream_id Unique identifier assigned to this stream by the host.
+ * 
  */
-BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id, 
-                                                                 const uint8_t* payload,
-                                                                 const uint32_t payload_len,
-                                                                 bluespy_event_id event_id);
+BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id);
 
 #ifdef __cplusplus
 }

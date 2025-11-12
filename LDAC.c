@@ -10,8 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-BLUESPY_CODEC_API bluespy_audio_codec_lib_info init() {
-    return (bluespy_audio_codec_lib_info) {.api_version = BLUESPY_AUDIO_API_VERSION, .codec_name = "LDAC"};
+BLUESPY_CODEC_API bluespy_audio_codec_lib_info init() 
+{
+    return (bluespy_audio_codec_lib_info){ .api_version = BLUESPY_AUDIO_API_VERSION,
+                                           .codec_name  = "LDAC" };
 }
 
 #define MAX_STREAMS 16
@@ -27,7 +29,8 @@ static struct LDAC_handle {
     int16_t pcm_buf[32768];
 } handles[MAX_STREAMS] = {0};
 
-static struct LDAC_handle* get_handle(bluespy_audiostream_id id) {
+static struct LDAC_handle* get_handle(bluespy_audiostream_id id) 
+{
     // Check if we already have a handle for this ID
     for (int i = 0; i < MAX_STREAMS; i++) {
         if (handles[i].in_use && handles[i].stream_id == id) {
@@ -50,10 +53,9 @@ static struct LDAC_handle* get_handle(bluespy_audiostream_id id) {
     return NULL;
 }
 
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id,
-                                                          const bluespy_audio_codec_info* info) {
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id, const bluespy_audio_codec_info* info) 
+{
     bluespy_audio_codec_init_ret r = { .error = -1, .format = {0, 0, 0}, .fns = {NULL, NULL} };
-
     const AVDTP_Service_Capabilities_Media_Codec_t* cap = info->config;
     
     if(cap->Media_Codec_Type != AVDTP_Codec_Vendor_Specific)
@@ -67,8 +69,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 
     uint8_t vendor_codec_id = cap->Media_Codec_Specific_Information[4];
 
-    if (vendor_id == 0x0000012D && vendor_codec_id == 0xAA) {
-        // LDAC (Sony)
+    if (vendor_id == 0x0000012D && vendor_codec_id == 0xAA) { // LDAC (Sony)
     } else {
         return r;
     }
@@ -126,7 +127,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return r;
 }
 
-BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id) {
+BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id) 
+{
     struct LDAC_handle* handle = get_handle(id);
     if (handle) {
         memset(&handle->dec, 0, sizeof(handle->dec));
@@ -135,75 +137,72 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id) {
     }
 }
 
-BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(
-    bluespy_audiostream_id id,
-    const uint8_t* payload,
-    const uint32_t payload_len,
-    bluespy_event_id event_id)
+BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id id,
+                                    const uint8_t* payload,
+                                    const uint32_t payload_len,
+                                    bluespy_event_id event_id,
+                                    uint64_t sequence_number)
 {
-    bluespy_audio_codec_decoded_audio out = { .data = NULL, .len = 0 };
-
     struct LDAC_handle* handle = get_handle(id);
-    if (!handle || !handle->initialized) {
-        return out;
+    if (!handle) {
+        return;
+    }
+    if (!handle->initialized) {
+        return;
     }
 
-    if (payload_len < 20) {
-        return out;
+    if (!payload || payload_len < 20) {
+        return;
     }
 
     const uint8_t* frame = payload;
     uint32_t len_left = payload_len;
 
-    // Strip RTP header
+    /* Strip RTP header */
     uint32_t csrc_count = payload[0] & 0x0F;
     uint32_t rtp_hdr = 12 + 4 * csrc_count;
     if (len_left <= rtp_hdr) {
-        return out;
+        return;
     }
 
     frame += rtp_hdr;
     len_left -= rtp_hdr;
 
-    // Find first LDAC sync (0xAA)
+    /* Find first LDAC sync (0xAA) */
     uint32_t sync_offset = 0;
     while (sync_offset < len_left && frame[sync_offset] != 0xAA)
         sync_offset++;
 
     if (sync_offset >= len_left) {
-        return out;
+        return;
     }
 
     frame += sync_offset;
     len_left -= sync_offset;
 
-    // Use per-stream buffer
     int16_t* pcm_buf = handle->pcm_buf;
     int16_t* pcm_write = pcm_buf;
     size_t total_bytes_written = 0;
+    unsigned frame_count = 0;
 
     while (len_left > 0) {
         int bytes_used = 0;
         int ret = ldacDecode(&handle->dec, (uint8_t*)frame, pcm_write, &bytes_used);
 
         if (ret < 0) {
-            // Attempt soft resync
+            /* Attempt soft resync */
             uint32_t resync_off = 1;
             while (resync_off < len_left && frame[resync_off] != 0xAA)
                 resync_off++;
-
-            if (resync_off >= len_left) {
+            if (resync_off >= len_left)
                 break;
-            }
-
             frame += resync_off;
             len_left -= resync_off;
             continue;
         }
 
-        if (bytes_used <= 0) {
+        if (bytes_used <= 0)
             break;
-        }
 
         frame += bytes_used;
         if (len_left < (uint32_t)bytes_used)
@@ -216,23 +215,21 @@ BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(
 
         pcm_write += frame_samples * channels;
         total_bytes_written += bytes_out;
+        frame_count++;
 
-        if ((size_t)(pcm_write - pcm_buf) >= sizeof(handle->pcm_buf)/sizeof(handle->pcm_buf[0])) {
+        if ((size_t)(pcm_write - pcm_buf)
+            >= sizeof(handle->pcm_buf) / sizeof(handle->pcm_buf[0]))
             break;
-        }
     }
 
     if (total_bytes_written == 0) {
-        return out;
+        return;
     }
 
     handle->sample_rate = ldacdecGetSampleRate(&handle->dec);
     handle->n_channels  = (uint8_t)ldacdecGetChannelCount(&handle->dec);
 
-    out.data = (uint8_t*)pcm_buf;
-    out.len  = (uint32_t)total_bytes_written;
-    out.source_id = event_id;
-    return out;
+    bluespy_add_decoded_audio((const uint8_t*)pcm_buf, (uint32_t)total_bytes_written, event_id);
 }
 
 #ifdef __cplusplus
