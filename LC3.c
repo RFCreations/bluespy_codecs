@@ -9,19 +9,12 @@
 #include <string.h>
 #include <stdbool.h>
 
-/* ------------------- Constants ------------------- */
-
 #define MAX_STREAMS  16
 #define MAX_CHANNELS 8
 
-/* ------------------------------------------------------------------------- */
-/*  Per‑stream handle                                                        */
-/* ------------------------------------------------------------------------- */
-
 typedef struct {
     bluespy_audiostream_id stream_id;
-    int                   in_use;
-
+    int      in_use;
     uint8_t  channels;
     uint32_t sample_rate_hz;
     uint32_t frame_duration_us;
@@ -33,11 +26,7 @@ typedef struct {
     size_t         samples_per_frame;
 } LC3Handle;
 
-static LC3Handle handles[MAX_STREAMS];
-
-/* ------------------------------------------------------------------------- */
-/*  Helpers                                                                  */
-/* ------------------------------------------------------------------------- */
+static LC3Handle handles[MAX_STREAMS] = {0};
 
 static LC3Handle* find_or_allocate_handle(bluespy_audiostream_id id)
 {
@@ -45,27 +34,15 @@ static LC3Handle* find_or_allocate_handle(bluespy_audiostream_id id)
         if (handles[i].in_use && handles[i].stream_id == id)
             return &handles[i];
 
-    for (int i = 0; i < MAX_STREAMS; ++i) {
+    for (int i = 0; i < MAX_STREAMS; ++i)
         if (!handles[i].in_use) {
             memset(&handles[i], 0, sizeof(handles[i]));
             handles[i].in_use    = 1;
             handles[i].stream_id = id;
             return &handles[i];
         }
-    }
-    return NULL;
-}
 
-/* Translate Bluetooth Sampling Frequency bit‑mask to rate in Hz. */
-static uint32_t decode_sampling_freq(uint16_t mask)
-{
-    if (mask & 0x0020) return 48000;
-    if (mask & 0x0010) return 44100;
-    if (mask & 0x0008) return 32000;
-    if (mask & 0x0004) return 24000;
-    if (mask & 0x0002) return 16000;
-    if (mask & 0x0001) return 8000;
-    return 48000;
+    return NULL;
 }
 
 /* Count set bits in the channel map. */
@@ -84,10 +61,20 @@ static uint8_t count_bits(const uint8_t* data, uint8_t length)
 #endif
 }
 
-/* ------------------------------------------------------------------------- */
-/*  TLV parsing                                                              */
-/* ------------------------------------------------------------------------- */
+static uint32_t lea_decode_sampling_freq(uint8_t val)
+{
+    switch (val) {
+    case 0x01: return 8000;
+    case 0x03: return 16000;
+    case 0x05: return 24000;
+    case 0x06: return 32000;
+    case 0x07: return 44100;
+    case 0x08: return 48000;
+    default:   return 48000;
+    }
+}
 
+/* Parse LE‑Audio Codec‑Specific Configuration TLVs */
 static void parse_lea_configuration(LC3Handle* handle,
                                     const uint8_t* tlv_ptr,
                                     uint32_t total_length)
@@ -103,50 +90,44 @@ static void parse_lea_configuration(LC3Handle* handle,
     while (tlv_ptr + 2 <= end) {
         uint8_t length = tlv_ptr[0];
         uint8_t type   = tlv_ptr[1];
-        if (length == 0) { 
-            ++tlv_ptr; 
-            continue;
-        }
-        if (tlv_ptr + length > end) 
+
+        if (tlv_ptr + 1 + length > end)
             break;
 
         const uint8_t* value = tlv_ptr + 2;
-        uint8_t vlen = length - 1;
+        uint8_t vlen = (length > 1) ? (length - 1) : 0;
 
         switch (type) {
-        case 0x01: { /* Sampling Frequency */
-            uint16_t val = 0;
-            for (uint8_t i = 0; i < vlen; ++i)
-                val |= (uint16_t)value[i] << (8 * i);
-            handle->sample_rate_hz = decode_sampling_freq(val);
-            break;
-        }
-        case 0x02: /* Frame Duration */
+        case 0x01: /* Selected Sampling Frequency */
             if (vlen >= 1)
-                handle->frame_duration_us = (value[0] == 0x00) ? 7500 : 10000;
+                handle->sample_rate_hz = lea_decode_sampling_freq(value[0]);
             break;
 
-        case 0x03: /* Audio Channel Allocation */
+        case 0x02: /* Selected Frame Duration */
+            if (vlen >= 1)
+                handle->frame_duration_us = (value[0] == 0x01) ? 10000 : 7500;
+            break;
+
+        case 0x03: /* Audio Channel Allocation */
             handle->channels = count_bits(value, vlen);
-            if (handle->channels == 0) 
+            if (handle->channels == 0)
                 handle->channels = 1;
             break;
 
-        case 0x04: /* Octets per Frame */
-            handle->bytes_per_channel = (vlen >= 2) ? (value[0] | (value[1] << 8)) : value[0];
+        case 0x04: /* Octets per Codec Frame */
+            if (vlen >= 2)
+                handle->bytes_per_channel = value[0] | (value[1] << 8);
+            else if (vlen == 1)
+                handle->bytes_per_channel = value[0];
             break;
 
         default:
             break;
         }
 
-        tlv_ptr += length;
+        tlv_ptr += 1 + length;
     }
 }
-
-/* ------------------------------------------------------------------------- */
-/*  blueSPY entry‑points                                                     */
-/* ------------------------------------------------------------------------- */
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void)
 {
@@ -156,57 +137,50 @@ BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void)
     };
 }
 
-/* ------------------------------------------------------------------------- */
-/*  new_codec_stream()                                                      */
-/* ------------------------------------------------------------------------- */
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id id, const bluespy_audio_codec_info* info)
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream( bluespy_audiostream_id id, const bluespy_audio_codec_info* info)
 {
     bluespy_audio_codec_init_ret ret = { .error = -1 };
 
     if (!info || !info->config || info->config_len < sizeof(LEA_Codec_Specific_Config_t))
         return ret;
-    if (info->container != BLUESPY_CODEC_LEA && info->container != BLUESPY_CODEC_LEA_BIS)
+
+    if (info->container != BLUESPY_CODEC_CIS && info->container != BLUESPY_CODEC_BIS)
         return ret;
 
     LC3Handle* handle = find_or_allocate_handle(id);
-    if (!handle) 
+    if (!handle)
         return ret;
 
     const uint8_t* cfg_bytes = (const uint8_t*)info->config;
     const LEA_Codec_Specific_Config_t* cfg = (const LEA_Codec_Specific_Config_t*)cfg_bytes;
 
-    /* Base right after the 4‑byte LC3 header */
-    const uint8_t* base = cfg_bytes + 4;
-    const uint8_t* tlv_start = base;
+    const uint8_t* tlv_start = cfg->Codec_Specific_Information;
+    size_t avail_bytes = info->config_len - (size_t)(tlv_start - cfg_bytes);
 
-    size_t avail_bytes = info->config_len - (tlv_start - cfg_bytes);
     parse_lea_configuration(handle, tlv_start, (uint32_t)avail_bytes);
-
     if (handle->channels > MAX_CHANNELS)
         handle->channels = MAX_CHANNELS;
 
     unsigned dec_size = lc3_decoder_size(handle->frame_duration_us, handle->sample_rate_hz);
-    if (!dec_size) { 
-        ret.error = -2; 
+    if (!dec_size) {
+        ret.error = -2;
         return ret;
     }
 
     handle->samples_per_frame = lc3_frame_samples(handle->frame_duration_us, handle->sample_rate_hz);
     size_t pcm_bytes = handle->samples_per_frame * handle->channels * sizeof(int16_t);
     handle->pcm_buffer = (int16_t*)calloc(1, pcm_bytes);
-    if (!handle->pcm_buffer) { 
+    if (!handle->pcm_buffer) {
         ret.error = -3;
         return ret;
     }
 
     for (uint8_t c = 0; c < handle->channels; ++c) {
         handle->decoder_mem[c] = calloc(1, dec_size);
-        handle->decoder[c] = lc3_setup_decoder(handle->frame_duration_us,
-                                               handle->sample_rate_hz,
-                                               0, handle->decoder_mem[c]);
-        if (!handle->decoder[c]) { 
-            ret.error = -5; 
-            return ret; 
+        handle->decoder[c] = lc3_setup_decoder(handle->frame_duration_us, handle->sample_rate_hz, 0, handle->decoder_mem[c]);
+        if (!handle->decoder[c]) {
+            ret.error = -5;
+            return ret;
         }
     }
 
@@ -219,51 +193,51 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-/* ------------------------------------------------------------------------- */
-/*  codec_deinit()                                                          */
-/* ------------------------------------------------------------------------- */
 BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id id)
 {
+    for (int i = 0; i < MAX_STREAMS; ++i) {
+        if (handles[i].in_use && handles[i].stream_id == id) {
+            for (uint8_t c = 0; c < MAX_CHANNELS; ++c) {
+                free(handles[i].decoder_mem[c]);
+                handles[i].decoder_mem[c] = NULL;
+                handles[i].decoder[c]     = NULL;
+            }
+            free(handles[i].pcm_buffer);
+            memset(&handles[i], 0, sizeof(handles[i]));
+            break;
+        }
+    }
+}
+
+BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id id,
+                                    const uint8_t* payload,
+                                    uint32_t payload_len,
+                                    bluespy_event_id event_id,
+                                    uint64_t sequence_number)
+{
+    (void)sequence_number;
+
     LC3Handle* handle = find_or_allocate_handle(id);
-    if (!handle) 
+    if (!handle || !handle->channels || !payload || payload_len == 0)
         return;
 
-    for (uint8_t c = 0; c < MAX_CHANNELS; ++c) {
-        free(handle->decoder_mem[c]);
-        handle->decoder_mem[c] = NULL;
-        handle->decoder[c]     = NULL;
-    }
-    free(handle->pcm_buffer);
-    memset(handle, 0, sizeof(*handle));
-}
-
-/* ------------------------------------------------------------------------- */
-/*  codec_decode()                                                          */
-/* ------------------------------------------------------------------------- */
-BLUESPY_CODEC_API bluespy_audio_codec_decoded_audio codec_decode(bluespy_audiostream_id id,
-                                                                 const uint8_t* payload,
-                                                                 const uint32_t payload_len,
-                                                                 bluespy_event_id event_id)
-{
-    bluespy_audio_codec_decoded_audio out = { .data=NULL, .len=0, .source_id=event_id };
-    LC3Handle* handle = find_or_allocate_handle(id);
-    if (!handle || !handle->channels || !payload || payload_len==0) 
-        return out;
-
     const size_t samples = handle->samples_per_frame;
-    const uint32_t bytes_per_ch = handle->bytes_per_channel;
+    const uint16_t bytes_per_ch = handle->bytes_per_channel;
     const int stride = handle->channels;
     int16_t* pcm = handle->pcm_buffer;
+
     memset(pcm, 0, samples * stride * sizeof(int16_t));
 
-    for (uint8_t c=0; c<handle->channels; ++c) {
+    for (uint8_t c = 0; c < handle->channels; ++c) {
         const uint8_t* frame = payload + c * bytes_per_ch;
         uint32_t frame_len = (payload_len < bytes_per_ch) ? payload_len : bytes_per_ch;
-        lc3_decode(handle->decoder[c], frame, frame_len,
-                   LC3_PCM_FORMAT_S16, pcm + c, stride);
+        lc3_decode(handle->decoder[c], frame, frame_len, LC3_PCM_FORMAT_S16, pcm + c, stride);
     }
 
-    out.data = (uint8_t*)pcm;
-    out.len  = samples * stride * sizeof(int16_t);
-    return out;
+    uint32_t bytes_out = samples * stride * sizeof(int16_t);
+    bluespy_add_decoded_audio((const uint8_t*)pcm, bytes_out, event_id);
 }
+
+#ifdef __cplusplus
+}
+#endif

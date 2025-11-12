@@ -76,9 +76,7 @@ typedef struct AVDTP_Service_Capabilities_Media_Codec_t {
  *     +---------+------+------ ... ----+
  */
 typedef struct LEA_Codec_Specific_Config_t {
-    uint8_t Codec_ID_LSB;
-    uint8_t Codec_ID_MSB;
-    uint8_t Direction;           /**< 0 = sink, 1 = source */
-    uint8_t Number_of_LTVs;      /**< optional hint */
-    uint8_t Codec_Specific_Information[1]; /**< concatenated LTVs */
+    uint8_t Codec_ID[5];       // <- Coding Format (1 byte), RFU - Company ID (2 bytes), RFU - Vendor specific codec ID (2 bytes)
+    uint8_t Cap_Length;        // <- Length of following LTVs in bytes
+    uint8_t Codec_Specific_Information[1]; // <- The LTVs
 } LEA_Codec_Specific_Config_t;

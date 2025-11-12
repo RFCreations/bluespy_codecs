@@ -48,6 +48,7 @@ if(BUILD_AAC)
     )
     add_subdirectory(fdk-aac-stripped EXCLUDE_FROM_ALL)
     target_link_libraries(aac PRIVATE fdk-aac bluespy_codec_build)
+    target_link_libraries(aac PRIVATE "C:\\path\\to\\libblueSPY\\libblueSPY.lib")
 endif()
 
 # Build aptX if enabled
@@ -57,6 +58,7 @@ if(BUILD_APTX)
         libfreeaptx/freeaptx.c
     )
     target_link_libraries(aptx PRIVATE bluespy_codec_build)
+    target_link_libraries(aptx PRIVATE "C:\\path\\to\\libblueSPY\\libblueSPY.lib")
     target_include_directories(aptx PRIVATE libfreeaptx)
 endif()
 
@@ -82,6 +84,7 @@ if(BUILD_LDAC)
     endif()
 
     target_link_libraries(ldac PRIVATE bluespy_codec_build)
+    target_link_libraries(ldac PRIVATE "C:\\path\\to\\libblueSPY\\libblueSPY.lib")
 endif()
 
 # Build LC3 if enabled
@@ -111,4 +114,5 @@ if(BUILD_LC3)
         bluespy_codec_build
         liblc3
     )
+    target_link_libraries(lc3 PRIVATE "C:\\path\\to\\libblueSPY\\libblueSPY.lib")
 endif()
