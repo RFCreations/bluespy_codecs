@@ -1015,18 +1015,19 @@ typedef enum bluespy_codec_container {
  * payloads as obtained from Bluetooth signalling. The meaning depends on @ref container:
  *
  * - **BLUESPY_CODEC_AVDTP**: @ref config points to a full
- *   `AVDTP_Service_Capabilities_Media_Codec_t` structure (including its entire
- *   `Media_Codec_Specific_Information` block).
+ *   AVDTP_Service_Capabilities_Media_Codec_t structure (including its entire
+ *   Media_Codec_Specific_Information block).
  *
- * - **BLUESPY_CODEC_CIS**: @ref config points to the `Codec_Specific_Configuration`
+ * - **BLUESPY_CODEC_CIS**: @ref config points to the Codec_Specific_Configuration
  *   part of the ASE Control Point (typically from a Set Configuration command).
  *
- * - **BLUESPY_CODEC_BIS**: @ref config points to a complete BASE (Broadcast Audio
- *   Stream Endpoint) data structure, as transmitted in BIG Info and BASE PDUL.
+ * - **BLUESPY_CODEC_BIS**: @ref config points to the ACAD + AdvData fields of 
+ *   the Extended Advertising PDU payload. ACAD (Additional Controller Advertising Data) 
+ *   includes the BIG Info block. AdvData (Advertising Data) includes the BASE block.
  *
  * In all cases, @ref config_len bytes are valid.
  *
- * @note Pointers are transient: valid only during the `new_codec_stream()` call.
+ * @note Pointers are transient: valid only during the new_codec_stream() call.
  *       Implementations must copy data they need.
  */
 typedef struct bluespy_audio_codec_info {
@@ -1091,8 +1092,7 @@ BLUESPY_API void bluespy_add_decoded_audio(const uint8_t* pcm_data,
  * - One or more codec frames
  * 
  * **For Bluetooth LE Audio (CIS/BIS):**
- * Payload is one reconstructed ISOAL SDU as received at the host, containing one
- * full LC3 frame (CIS) or per‑channel frame set (BIS).
+ * Payload is one reconstructed ISOAL SDU.
  * 
  * @param payload_len Length of the encoded data in bytes.
  * @param event_id Capture‑event identifier for this SDU or packet; used by the
