@@ -999,8 +999,7 @@ typedef bluespy_audio_codec_lib_info (*bluespy_audio_codec_lib_init_t)(void);
 /**
  * @brief Enumeration of transport/container types used to deliver codec data.
  * 
- * This is used to differentiate between classic Bluetooth (AVDTP/A2DP) and 
- * Bluetooth LE Audio (LEA) transports.
+ * This is used to differentiate between Classic (AVDTP/A2DP) and LE Audio (LEA) transports.
  */
 typedef enum bluespy_codec_container {
     BLUESPY_CODEC_AVDTP,
@@ -1012,7 +1011,7 @@ typedef enum bluespy_codec_container {
  * @brief Describes the codec configuration for a given audio stream.
  *
  * The configuration data pointed to by @ref config points to container‑specific
- * payloads as obtained from Bluetooth signalling. The meaning depends on @ref container:
+ * payloads as obtained from signalling. The meaning depends on @ref container:
  *
  * - **BLUESPY_CODEC_AVDTP**: @ref config points to a full
  *   AVDTP_Service_Capabilities_Media_Codec_t structure (including its entire
@@ -1075,6 +1074,22 @@ BLUESPY_API void bluespy_add_decoded_audio(const uint8_t* pcm_data,
                                                  bluespy_event_id source_id);
 
 /**
+ * @brief Host callback for delivering decoded PCM from continuous stream codecs.
+ * 
+ * Use this instead of @ref bluespy_add_decoded_audio when the codec is 
+ * continuous (e.g., aptX, SBC) and RTP timestamps should be ignored in favor 
+ * of gapless playback.
+ * 
+ * @param pcm_data      Pointer to decoded PCM data (S16 LE interleaved).
+ * @param pcm_data_len  Number of bytes at @p pcm_data.
+ * @param source_id     Identifier for the source SDU / packet, used by the host
+ *                      to correlate decoded audio with captured packets.
+ */
+BLUESPY_API void bluespy_add_continuous_audio(const uint8_t* pcm_data,
+                                              uint32_t pcm_data_len,
+                                              bluespy_event_id source_id);                                                 
+
+/**
  * @brief Function pointer type for the codec_decode function.
  * 
  * Called once per encoded packet or frame to produce decoded PCM audio data.
@@ -1085,13 +1100,13 @@ BLUESPY_API void bluespy_add_decoded_audio(const uint8_t* pcm_data,
  *           so codecs must maintain separate state per stream ID.
  * @param payload Pointer to the encoded audio packet or frame.
  * 
- * **For Classic Bluetooth (A2DP/AVDTP):** This buffer represents the contents of a single
- * L2CAP Service Data Unit (SDU) carrying an AVDTP media packet. This typically contains:
+ * **For Classic (A2DP/AVDTP):** This buffer represents the contents of a single
+ *   L2CAP Service Data Unit (SDU) carrying an AVDTP media packet. This typically contains:
  * - RTP header (12 bytes + 4 bytes per CSRC)
  * - Optional codec-specific headers (e.g., LDAC sync byte 0xAA)
  * - One or more codec frames
  * 
- * **For Bluetooth LE Audio (CIS/BIS):**
+ * **For LE Audio (CIS/BIS):**
  * Payload is one reconstructed ISOAL SDU.
  * 
  * @param payload_len Length of the encoded data in bytes.
@@ -1145,8 +1160,7 @@ typedef struct bluespy_audio_codec_init_ret {
 /**
  * @brief Function‑pointer type for a codec’s stream‑creation routine.
  * 
- * The host calls this when a Bluetooth audio stream is detected and needs
- * decoding.
+ * The host calls this when an audio stream is detected and needs decoding.
  *
  * The codec should:
  * 1. Verify that it supports the provided configuration.
