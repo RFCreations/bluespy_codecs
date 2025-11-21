@@ -57,7 +57,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void);
 /**
  * @brief Create and configure a new codec instance for a detected stream.
  * 
- * The host calls this function when a Bluetooth audio stream has been
+ * The host calls this function when an audio stream has been
  * discovered and requires decoding.
  * 
  * @param stream_id Unique identifier assigned to this stream by the host.
@@ -80,7 +80,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
  * @param sequence_number 64‑bit monotonically‑increasing sequence counter for this SDU, assigned by the host.
  * 
  * @note
- *   - **Classic Bluetooth (AVDTP/A2DP):**  
+ *   - **Classic (AVDTP/A2DP):**  
  *     Each call represents one L2CAP SDU = one AVDTP Media Packet, usually
  *     containing an RTP header (12 + 4×CSRC bytes) followed by one or more
  *     codec frames.

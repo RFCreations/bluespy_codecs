@@ -1,12 +1,12 @@
 #include "stdint.h"
 
 /*------------------------------------------------------------------------------
- * Bluetooth AVDTP Media Codec Capability structures
- * Derived from Bluetooth A2DP Specifcation
+ * AVDTP Media Codec Capability structures
+ * Derived from Specifcation Documents as indicated
  *----------------------------------------------------------------------------*/
 
 /**
- * @brief AVDTP Service Category identifiers
+ * @brief AVDTP Service Category identifiers (AVDTP Specification, Section 8.21, Service Capabilities)
  */
 typedef enum AVDTP_Service_Category_E : uint8_t {
     AVDTP_Service_Not_Applicable      = 0,
@@ -21,7 +21,7 @@ typedef enum AVDTP_Service_Category_E : uint8_t {
 } AVDTP_SERVICE_CATEGORY_E;
 
 /**
- * @brief AVDTP Media Type Values
+ * @brief AVDTP Media Type Values (Assigned Numbers, Section 6.3.1, Media Type)
  */
 typedef enum AVDTP_Media_Type_e : uint8_t {
     AVDTP_MediaType_Audio       = 0,
@@ -30,7 +30,7 @@ typedef enum AVDTP_Media_Type_e : uint8_t {
 } AVDTP_MEDIA_TYPE_E;
 
 /**
- * @brief AVDTP Media Codec Types
+ * @brief AVDTP Media Codec Types (Assigned Numbers, Section 6.5.1, Audio Codec ID)
  */
 typedef enum AVDTP_MEDIA_CODEC_TYPE_E : uint8_t {
     AVDTP_Codec_SBC              = 0,
@@ -42,7 +42,7 @@ typedef enum AVDTP_MEDIA_CODEC_TYPE_E : uint8_t {
 } AVDTP_MEDIA_CODEC_TYPE_E;
 
 /**
- * @brief AVDTP Media Codec Service Capability structure
+ * @brief AVDTP Media Codec Service Capability structure (AVDTP Specification, Section 8.21.5, Media Codec Capabilities)
  * 
  * Represents the "Media Codec" capability element signalled in A2DP.
  * 
@@ -76,7 +76,31 @@ typedef struct AVDTP_Service_Capabilities_Media_Codec_t {
  *     +---------+------+------ ... ----+
  */
 typedef struct LEA_Codec_Specific_Config_t {
-    uint8_t Codec_ID[5];       // <- Coding Format (1 byte), RFU - Company ID (2 bytes), RFU - Vendor specific codec ID (2 bytes)
+    uint8_t Codec_ID[5];       // <- Coding Format (1 byte), RFU - Company ID (2 bytes), RFU - Vendor specific codec ID (2 bytes). See Assigned Numbers Section 2.11.
     uint8_t Cap_Length;        // <- Length of following LTVs in bytes
     uint8_t Codec_Specific_Information[1]; // <- The LTVs
 } LEA_Codec_Specific_Config_t;
+
+/**
+ * @brief LE Audio Broadcast (BIS) configuration container
+ *
+ * Matches the concatenated ACAD (Big Info) + AdvData (BASE) region obtained
+ * from extended advertising PDUs for a broadcast isochronous stream.
+ *
+ * Layout on wire:
+ *   +-------------+-----+----------+
+ *   | 0xLL | 0x2C | BIG Info…     |  ← ACAD
+ *   +-------------+-----+----------+
+ *   | 0xLL | 0x16 | 0x51 0x18 …   |  ← AdvData (Service Data 1851)
+ *   |              | LC3 LTV …    |
+ *   +-------------+---------------+
+ *
+ * Within the BASE portion, the LC3 codec‑specific configuration LTVs follow the
+ * 2‑byte 0x1851 service UUID.  These TLVs have identical semantics to those in
+ * @ref LEA_Codec_Specific_Config_t (types 1 – 5).
+ */
+typedef struct LEA_Broadcast_Codec_Config_t {
+    uint8_t acad_len;        /*!< Length of ACAD block including type byte (filled by host) */
+    uint8_t acad_type;       /*!< Should be 0x2C (BIG Info) */
+    uint8_t big_info[1];     /*!< Variable‑length BIG Info payload(s) followed by AdvData… */
+} LEA_Broadcast_Codec_Config_t;
