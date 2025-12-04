@@ -6,46 +6,50 @@
 This repository contains the source for some extra audio codecs for RFcreations' blueSPY software.
 These serve as an example for adding new custom codecs.
 
-## Adding AAC and/or aptX
+## Adding AAC, aptX, or LDAC
 
-If you're only interested in decoding ACC and/or aptX, we've provided a GitHib actions workflow to make it as simple as possible:
+If you're only interested in decoding any or all of ACC (aac-stripped), aptX (libfreeaptx), and LDAC (libldacdec) we've provided a GitHib actions workflow to make it as simple as possible:
 
 0. Click the **Actions** tab at the top of this page.
-1. In the left sidebar, click the workflow **Build AAC + aptX DLLs**.
+1. In the left sidebar, click the workflow **Build Codec Dynamic Libraries**.
 2. At the top right, click the green **Run workflow** button. Select which platform(s) and codec(s) you want from the dropdown menus, then click **Run workflow** again.
 3. GitHub Actions will start the job.
 4. Once the job is complete, scroll down to the **Artifacts** section and click on the download button.
 5. Unzip (extract) locally, then copy the files to a directory as specified below:
-   - Windows User: C:\\Users\\\<USER\>\\AppData\\Roaming\\RFcreations\\blueSPY\\audio_codecs\\
-   - Windows System: C:\\Program Files\\RFcreations\\blueSPY\\audio_codecs\\
-   - Mac User: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
-   - Mac System: /Applications/blueSPY.app/Contents/Frameworks/audio_codecs/
-   - Linux User: ~/.local/share/RFcreations/blueSPY/audio_codecs/
-   - Linux System: \<INSTALLATION_DIRECTORY\>/audio_codecs/
-6. Your blueSPY application will now be able to decode and replay AAC and/or aptX audio streams.
+   - Set an environment variable on your machine **BLUESPY_AUDIO_CODEC_DIR** with value the directory you wish to store the codec libraries in. Copy the codec libraries into this directory.
+   - If you do not wish to set an environment variable, the default directories that blueSPY will check are as follows:
+      - Windows User: C:/Users/\<USER\>/AppData/Roaming/RFcreations/blueSPY/audio_codecs/
+      - Windows System: C:/Program Files/RFcreations/blueSPY/audio_codecs/
+      - Mac User: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
+      - Mac System: /Applications/blueSPY.app/Contents/Frameworks/audio_codecs/
+      - Linux User: ~/.local/share/RFcreations/blueSPY/audio_codecs/
+      - Linux System: \<INSTALLATION_DIRECTORY\>/audio_codecs/
+6. Your blueSPY application will now be able to decode and replay audio streams for these codecs.
 
 
-## Adding new and/or custom codecs
+## Adding New and/or Custom Codecs
 
 0. Ensure you have cmake and a suitable compiler/toolchain installed (MSVC/LLVM/GCC).
-1. Open a terminal (on windows you may need to use the Visual Studio developer prompt).
+1. Open a terminal (on Windows you may need to use the Visual Studio developer prompt).
 2. Run: `git clone --recurse-submodules https://github.com/RFCreations/bluespy_codecs.git && cd bluespy_codecs`
-3. Add mycodec.c, you may wish to copy the structure of APTX.c or AAC.c.
+3. Add MYCODEC.c. You may wish to copy the structure of one of the provided examples. There is a template called [TEMPLATE_CODEC.c](TEMPLATE_CODEC.c) if you would like to copy that as a starting point. 
 4. Implement the four functions in bluespy_codec_interface.h (init, new_codec_stream, codec_deinit, and codec_decode).
-5. Add a new secion at the bottom of CMakeLists.txt for mycodec, using the aptx/acc ones as an example.
+5. Add a new secion at the bottom of CMakeLists.txt for MYCODEC, using the provided ones as examples.
 6. Run: `cmake --preset release && cmake --build build/release`
 7. Copy build/release/mycodec.{dll,so,dylib} to a directory as specified below:
-   - Windows User: C:\\Users\\\<USER\>\\AppData\\Roaming\\RFcreations\\blueSPY\\audio_codecs\\
-   - Windows System: C:\\Program Files\\RFcreations\\blueSPY\\audio_codecs\\
-   - Mac User: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
-   - Mac System: /Applications/blueSPY.app/Contents/Frameworks/audio_codecs/
-   - Linux User: ~/.local/share/RFcreations/blueSPY/audio_codecs/
-   - Linux System: \<INSTALLATION_DIRECTORY\>/audio_codecs/
+   - Set an environment variable on your machine **BLUESPY_AUDIO_CODEC_DIR** with value the directory you wish to store the codec libraries in. Copy the codec libraries into this directory.
+   - If you do not wish to set an environment variable, the default directories that blueSPY will check are as follows:
+      - Windows User: C:/Users/\<USER\>/AppData/Roaming/RFcreations/blueSPY/audio_codecs/
+      - Windows System: C:/Program Files/RFcreations/blueSPY/audio_codecs/
+      - Mac User: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
+      - Mac System: /Applications/blueSPY.app/Contents/Frameworks/audio_codecs/
+      - Linux User: ~/.local/share/RFcreations/blueSPY/audio_codecs/
+      - Linux System: \<INSTALLATION_DIRECTORY\>/audio_codecs/
 
-Contact RFcreations support if you require help with this, or your codec needs some extra information.
+Contact RFCreations support if you require help with this, or your codec needs some extra information.
 
-Please consider releasing your custom codec back to RFcreations so we can include it for all our mutual customers.
-We can accept pull requests via github, or private source or binary versions sent to RFcreations support.
+Please consider releasing your custom codec back to RFCreations so we can include it for all our mutual customers.
+We can accept pull requests via GitHub, or private source or binary versions sent to RFCreations support.
 
 All code in this repository, excluding the submodules, is released under the Boost Software License which imposes
 practically no requirements on your use of the code. However, the underlying codecs have their own licenses which can
