@@ -8,8 +8,6 @@ option(BUILD_APTX "Build aptX codec DLL" ON)
 option(BUILD_LDAC "Build LDAC codec DLL" ON)
 option(BUILD_LC3 "Build LC3 codec DLL" ON)
 
-# set(CMAKE_CXX_STANDARD 11)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -17,9 +15,13 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
+
+option(USE_STUB_BLUESPY_CPP "Use stub library for blueSPY (for CI builds)" OFF)
+
+# --------- Set path to libblueSPY.lib here ---------
 set(LIB_BLUESPY_PATH "C:/Path/to/Repos/libblueSPY/libblueSPY.lib")
 
-# Find bluespy.h in blueSPY install directory or use ci-stubs version for CI
+# --------- Find bluespy.h in blueSPY install directory or use ci-stubs version for CI ---------
 find_path(BLUESPY_INCLUDE_DIR 
           NAMES bluespy.h
           PATHS "C:/Program Files/RFcreations/blueSPY")
@@ -33,6 +35,15 @@ endif()
 
 include_directories(${BLUESPY_INCLUDE_DIR})
 
+if (USE_STUB_BLUESPY_CPP OR NOT EXISTS "${LIB_BLUESPY_PATH}")
+    add_library(libblueSPY_stub STATIC ${CMAKE_SOURCE_DIR}/ci-stubs/bluespy/bluespy.cpp)
+    target_compile_definitions(libblueSPY_stub PUBLIC BLUESPY_API=)
+    set(LIB_BLUESPY_PATH libblueSPY_stub)
+else()
+    message(STATUS "Using real libblueSPY at: ${LIB_BLUESPY_PATH}")
+endif()
+
+# ---- Interface libraries ----
 add_library(bluespy_codecs INTERFACE)
 target_include_directories(bluespy_codecs INTERFACE include)
 
@@ -40,6 +51,7 @@ add_library(bluespy_codec_build INTERFACE)
 target_link_libraries(bluespy_codec_build INTERFACE bluespy_codecs)
 target_compile_definitions(bluespy_codec_build INTERFACE BLUESPY_CODEC_BUILD)
 
+# ---- Codec builds ----
 # Build AAC if enabled
 if(BUILD_AAC)
     # Force fdk-aac to build statically, no DLL
