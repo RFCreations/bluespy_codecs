@@ -15,6 +15,7 @@ on:
           - aac
           - aptx
           - ldac
+          - lc3
           - all
       os:
         description: "Which platform(s) to build for"
@@ -29,6 +30,7 @@ on:
 
 jobs:
   build-windows:
+    name: Build on Windows
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'windows' || github.event.inputs.os == 'all' }}
     runs-on: windows-latest
 
@@ -38,23 +40,34 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-cmake-${{ github.event.inputs.codec }}-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-cmake-
+
       - name: Configure with CMake
+        shell: powershell
         run: |
           echo "Codec selected: ${{ github.event.inputs.codec }}"
+          $cmake_base = "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_STUB_BLUESPY=ON"
           if ("${{ github.event.inputs.codec }}" -eq "aac") {
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF
+            Invoke-Expression "$cmake_base -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=OFF"
           } elseif ("${{ github.event.inputs.codec }}" -eq "aptx") {
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF
+            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DBUILD_LC3=OFF"
           } elseif ("${{ github.event.inputs.codec }}" -eq "ldac") {
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON
+            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DBUILD_LC3=OFF"
+          } elseif ("${{ github.event.inputs.codec }}" -eq "lc3") {
+            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=ON"
           } else {
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON
+            Invoke-Expression "$cmake_base -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DBUILD_LC3=ON"
           }
-        shell: powershell
 
       - name: Build DLLs
-        run: cmake --build build --config Release
         shell: powershell
+        run: cmake --build build --config Release
 
       - name: Upload Windows artifacts (.dll)
         uses: actions/upload-artifact@v4
@@ -62,29 +75,49 @@ jobs:
           name: windows-${{ github.event.inputs.codec }}-dlls
           path: |
             build/**/*.dll
+            !build/**/*.lib
+            !build/**/*.obj
+
+      - name: Print summary
+        run: echo "Built \`${{ github.event.inputs.codec }}\` codec(s) on Windows successfully!" >> $env:GITHUB_STEP_SUMMARY
 
   build-linux:
+    name: Build on Linux
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'linux' || github.event.inputs.os == 'all' }}
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout source
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Install deps
+      - name: Install dependencies
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang cmake
 
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-cmake-${{ github.event.inputs.codec }}-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-cmake-
+
       - name: Configure with CMake
+        shell: bash
         run: |
+          set -e
+          echo "Codec selected: ${{ github.event.inputs.codec }}"
           if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "ldac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
+          elif [ "${{ github.event.inputs.codec }}" = "lc3" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
           else
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
           fi
 
       - name: Build SOs
@@ -94,30 +127,51 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-${{ github.event.inputs.codec }}-sos
-          path: build/**/*.so
+          path: |
+            build/**/*.so
+            !build/**/*.a
+            !build/**/*.o
+
+      - name: Print summary
+        run: echo "Built \`${{ github.event.inputs.codec }}\` codec(s) on Linux successfully!" >> $GITHUB_STEP_SUMMARY
 
   build-macos:
+    name: Build on macOS
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.os == 'macos' || github.event.inputs.os == 'all' }}
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout source
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Install deps
+      - name: Install dependencies
         run: brew install cmake ninja llvm
 
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-cmake-${{ github.event.inputs.codec }}-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-cmake-
+
       - name: Configure with CMake
+        shell: bash
         run: |
+          set -e
+          echo "Codec selected: ${{ github.event.inputs.codec }}"
           if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "ldac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
+          elif [ "${{ github.event.inputs.codec }}" = "lc3" ]; then
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
           else
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
           fi
 
       - name: Build dylibs
@@ -127,4 +181,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos-${{ github.event.inputs.codec }}-dylibs
-          path: build/**/*.dylib
+          path: |
+            build/**/*.dylib
+            !build/**/*.a
+            !build/**/*.o
+
+      - name: Print summary
+        run: echo "Built \`${{ github.event.inputs.codec }}\` codec(s) on macOS successfully!" >> $GITHUB_STEP_SUMMARY
