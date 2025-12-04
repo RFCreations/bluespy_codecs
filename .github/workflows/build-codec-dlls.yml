@@ -15,7 +15,6 @@ on:
           - aac
           - aptx
           - ldac
-          - lc3
           - all
       os:
         description: "Which platform(s) to build for"
@@ -54,15 +53,13 @@ jobs:
           echo "Codec selected: ${{ github.event.inputs.codec }}"
           $cmake_base = "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_STUB_BLUESPY=ON"
           if ("${{ github.event.inputs.codec }}" -eq "aac") {
-            Invoke-Expression "$cmake_base -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=OFF"
+            Invoke-Expression "$cmake_base -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF"
           } elseif ("${{ github.event.inputs.codec }}" -eq "aptx") {
-            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DBUILD_LC3=OFF"
+            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF"
           } elseif ("${{ github.event.inputs.codec }}" -eq "ldac") {
-            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DBUILD_LC3=OFF"
-          } elseif ("${{ github.event.inputs.codec }}" -eq "lc3") {
-            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=ON"
+            Invoke-Expression "$cmake_base -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON"
           } else {
-            Invoke-Expression "$cmake_base -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DBUILD_LC3=ON"
+            Invoke-Expression "$cmake_base -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON"
           }
 
       - name: Build DLLs
@@ -77,9 +74,6 @@ jobs:
             build/**/*.dll
             !build/**/*.lib
             !build/**/*.obj
-
-      - name: Print summary
-        run: echo "Built \`${{ github.event.inputs.codec }}\` codec(s) on Windows successfully!" >> $env:GITHUB_STEP_SUMMARY
 
   build-linux:
     name: Build on Linux
@@ -109,15 +103,13 @@ jobs:
           set -e
           echo "Codec selected: ${{ github.event.inputs.codec }}"
           if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "ldac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
-          elif [ "${{ github.event.inputs.codec }}" = "lc3" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DUSE_STUB_BLUESPY=ON
           else
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DUSE_STUB_BLUESPY=ON
           fi
 
       - name: Build SOs
@@ -131,9 +123,6 @@ jobs:
             build/**/*.so
             !build/**/*.a
             !build/**/*.o
-
-      - name: Print summary
-        run: echo "Built \`${{ github.event.inputs.codec }}\` codec(s) on Linux successfully!" >> $GITHUB_STEP_SUMMARY
 
   build-macos:
     name: Build on macOS
@@ -163,15 +152,13 @@ jobs:
           set -e
           echo "Codec selected: ${{ github.event.inputs.codec }}"
           if [ "${{ github.event.inputs.codec }}" = "aac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "aptx" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=ON -DBUILD_LDAC=OFF -DUSE_STUB_BLUESPY=ON
           elif [ "${{ github.event.inputs.codec }}" = "ldac" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DBUILD_LC3=OFF -DUSE_STUB_BLUESPY=ON
-          elif [ "${{ github.event.inputs.codec }}" = "lc3" ]; then
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=OFF -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=OFF -DBUILD_APTX=OFF -DBUILD_LDAC=ON -DUSE_STUB_BLUESPY=ON
           else
-            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DBUILD_LC3=ON -DUSE_STUB_BLUESPY=ON
+            cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_AAC=ON -DBUILD_APTX=ON -DBUILD_LDAC=ON -DUSE_STUB_BLUESPY=ON
           fi
 
       - name: Build dylibs
@@ -185,6 +172,3 @@ jobs:
             build/**/*.dylib
             !build/**/*.a
             !build/**/*.o
-
-      - name: Print summary
-        run: echo "Built \`${{ github.event.inputs.codec }}\` codec(s) on macOS successfully!" >> $GITHUB_STEP_SUMMARY
