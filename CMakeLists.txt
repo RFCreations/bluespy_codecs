@@ -16,7 +16,7 @@ set(CMAKE_SHARED_LIBRARY_PREFIX "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BUILD_SHARED_LIBS OFF)
 
-option(USE_STUB_BLUESPY_CPP "Use stub library for blueSPY (for CI builds)" OFF)
+option(USE_STUB_BLUESPY "Use stub library for blueSPY (for CI builds)" OFF)
 
 # --------- Set path to libblueSPY.lib here ---------
 set(LIB_BLUESPY_PATH "C:/Path/to/Repos/libblueSPY/libblueSPY.lib")
@@ -35,15 +35,24 @@ endif()
 
 include_directories(${BLUESPY_INCLUDE_DIR})
 
-if (USE_STUB_BLUESPY_CPP OR NOT EXISTS "${LIB_BLUESPY_PATH}")
-    add_library(libblueSPY_stub STATIC ${CMAKE_SOURCE_DIR}/ci-stubs/bluespy/bluespy.cpp)
-    target_compile_definitions(libblueSPY_stub PUBLIC BLUESPY_API=)
-    set(LIB_BLUESPY_PATH libblueSPY_stub)
-else()
-    message(STATUS "Using real libblueSPY at: ${LIB_BLUESPY_PATH}")
+# --------- Link libblueSPY as shared library for CI ---------
+if (USE_STUB_BLUESPY OR NOT EXISTS "${LIB_BLUESPY_PATH}")
+    add_library(libblueSPY SHARED ${CMAKE_SOURCE_DIR}/ci-stubs/bluespy/bluespy.cpp)
+
+    if(WIN32)
+        target_compile_definitions(libblueSPY PRIVATE BLUESPY_BUILD_DLL)
+    else()
+        target_compile_definitions(libblueSPY PRIVATE BLUESPY_API=)
+    endif()
+
+    set_target_properties(libblueSPY PROPERTIES
+        OUTPUT_NAME "libblueSPY"
+    )
+
+    set(LIB_BLUESPY_PATH libblueSPY)
 endif()
 
-# ---- Interface libraries ----
+# --------- Interface libraries ---------
 add_library(bluespy_codecs INTERFACE)
 target_include_directories(bluespy_codecs INTERFACE include)
 
@@ -51,7 +60,7 @@ add_library(bluespy_codec_build INTERFACE)
 target_link_libraries(bluespy_codec_build INTERFACE bluespy_codecs)
 target_compile_definitions(bluespy_codec_build INTERFACE BLUESPY_CODEC_BUILD)
 
-# ---- Codec builds ----
+# --------- Codec builds ---------
 # Build AAC if enabled
 if(BUILD_AAC)
     # Force fdk-aac to build statically, no DLL
