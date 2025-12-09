@@ -45,7 +45,7 @@ extern "C" {
  * BLUESPY_CODEC_API bluespy_audio_codec_lib_info init() {
  *     return (bluespy_audio_codec_lib_info){
  *         .api_version = BLUESPY_AUDIO_API_VERSION,
- *         .codec_name  = "AAC"
+ *         .codec_name = "AAC"
  *     };
  * }
  * @endcode
@@ -57,11 +57,10 @@ BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void);
 /**
  * @brief Create and configure a new codec instance for a detected stream.
  * 
- * The host calls this function when an audio stream has been
- * discovered and requires decoding.
+ * The host calls this function when an audio stream has been discovered and requires decoding.
  * 
  * @param stream_id Unique identifier assigned to this stream by the host.
- * @param info Pointer to container‑specific codec configuration (valid only for the duration of this call).
+ * @param info Pointer to container-specific codec configuration (valid only for the duration of this call).
  * 
  * @return 
  *  - On success: structure with error == 0 and valid function pointers. 
@@ -76,16 +75,16 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
  * @param[in] stream_id Unique identifier assigned to this stream by the host.
  * @param[in] payload Pointer to encoded bytes.
  * @param[in] payload_len Length in bytes of @p payload.
- * @param[out] event_id Capture‑event identifier corresponding to this SDU.
- * @param sequence_number 64‑bit monotonically‑increasing sequence counter for this SDU, assigned by the host.
+ * @param[out] event_id Capture event identifier corresponding to this SDU.
+ * @param sequence_number 64-bit monotonically increasing sequence counter for this SDU, assigned by the host.
  * 
  * @note
  *   - **Classic (AVDTP/A2DP):**  
- *     Each call represents one L2CAP SDU = one AVDTP Media Packet, usually
- *     containing an RTP header (12 + 4×CSRC bytes) followed by one or more
+ *     Each call represents one L2CAP SDU = one AVDTP Media Packet, usually
+ *     containing an RTP header (12 + 4xCSRC bytes) followed by one or more
  *     codec frames.
- *   - **LE Audio (CIS/BIS):**  
- *     Each call provides a reconstructed ISOAL SDU as seen at the host layer.
+ *   - **LE Audio (CIS/BIS):**
+ *     Each call provides a reconstructed ISOAL SDU as seen at the host layer.
  *     Depending on ISOAL segmentation rules, one SDU can hold multiple codec
  *     frames or a partial frame. The decoder must handle reconstruction.
  */
@@ -97,9 +96,9 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id,
                                     uint64_t sequence_number);
     
 /**
- * @brief De‑initialise and release all state for a codec stream.
+ * @brief De-initialise and release all state for a codec stream.
  * 
- * Called when a stream ends or is no longer required.  Implementations must
+ * Called when a stream ends or is no longer required. Implementations must
  * free any dynamic allocations and may close decoder handles.
  * The function must tolerate being called multiple times for the same ID,
  * performing no operation after the first successful cleanup.
