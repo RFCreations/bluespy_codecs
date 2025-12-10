@@ -62,6 +62,11 @@ typedef struct AVDTP_Service_Capabilities_Media_Codec_t {
     uint8_t Media_Codec_Specific_Information[1];
 } AVDTP_Service_Capabilities_Media_Codec_t;
 
+/*------------------------------------------------------------------------------
+ * LE Audio Codec Specific Configuration Containers
+ * See Specifcation Documents as indicated
+ *----------------------------------------------------------------------------*/
+
 /**
  * @brief LE Audio Codec Specific Configuration container
  *
