@@ -2,7 +2,7 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
 /**
- * @file AAC.c
+ * @file AAC.cpp
  * @brief AAC codec plugin for blueSPY
  */
 
@@ -139,7 +139,7 @@ static uint32_t parse_sample_rate(const uint8_t* cfg) {
 }
 
 /**
- * @brief Parse channel count from AAC Media Codec Specific Information
+ * @brief Parse channel count from AAC Media Codec Specific Information (A2DP Spec, Section 4.5.2.4)
  *
  * @param cfg Pointer to Media_Codec_Specific_Information
  * @return Number of channels (1 or 2)
@@ -168,6 +168,8 @@ static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_l
 /*------------------------------------------------------------------------------
  * API Implementation
  *----------------------------------------------------------------------------*/
+
+extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
     return (bluespy_audio_codec_lib_info){
@@ -361,3 +363,5 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id) {
         stream_release(stream);
     }
 }
+
+} // end extern "C"

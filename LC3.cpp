@@ -2,11 +2,14 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
 /**
- * @file LC3.c
+ * @file LC3.cpp
  * @brief LC3 codec plugin for blueSPY
  *
  * Implements LC3 decoding for both CIS (Connected Isochronous Stream) and
  * BIS (Broadcast Isochronous Stream) LE Audio containers.
+ * 
+ * NOTE: blueSPY will natively decode LC3 streams without this plugin. This file
+ *       is designed only to serve as an example of how the API works for LE Audio codecs.
  */
 
 #include "bluespy_codec_interface.h"
@@ -469,8 +472,10 @@ static bool init_decoders(LC3_stream* stream)
 }
 
 /*------------------------------------------------------------------------------
- * Public API
+ * API Implementation
  *----------------------------------------------------------------------------*/
+
+extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void)
 {
@@ -615,3 +620,5 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id)
         stream_release(stream);
     }
 }
+
+} // end extern "C"

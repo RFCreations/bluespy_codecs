@@ -2,7 +2,7 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
 /**
- * @file aptX.c
+ * @file aptX.cpp
  * @brief aptX/aptX HD codec plugin for blueSPY
  *
  * Implements aptX and aptX HD decoding for AVDTP/A2DP Classic
@@ -11,7 +11,9 @@
 
 #include "bluespy_codec_interface.h"
 #include "codec_structures.h"
-#include "freeaptx.h"
+extern "C" {
+    #include "freeaptx.h"
+}
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -235,8 +237,10 @@ static size_t convert_24bit_to_16bit(const uint8_t* src, size_t src_bytes, int16
 }
 
 /*------------------------------------------------------------------------------
- * Public API
+ * API Implementation
  *----------------------------------------------------------------------------*/
+
+extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void)
 {
@@ -369,3 +373,5 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id)
         stream_release(stream);
     }
 }
+
+} // end extern "C"

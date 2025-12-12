@@ -1,5 +1,5 @@
 /**
- * @file TEMPLATE_CODEC.c
+ * @file TEMPLATE_CODEC.cpp
  * @brief Template codec plugin for blueSPY
  *
  * Use this file as a skeleton for implementing a new codec plugin.
@@ -175,6 +175,8 @@ static bool parse_codec_config(const bluespy_audio_codec_info* info, TEMPLATE_st
  * Public API Functions (required)
  *----------------------------------------------------------------------------*/
 
+extern "C" {
+
 /**
  * @brief Library-level initialization.
  *
@@ -292,3 +294,5 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id)
         stream_release(stream);
     }
 }
+
+} // end extern "C"
