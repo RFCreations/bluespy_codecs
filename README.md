@@ -15,7 +15,7 @@ This repository serves two purposes:
 
 As explained above, plugins for decoding AAC Low Complexity ([aac-stripped](https://github.com/RFCreations/fdk-aac-stripped/tree/529b87452cd33d45e1d0a5066d20b64f10b38845)), aptX and aptX HD ([libfreeaptx](https://github.com/regularhunter/libfreeaptx/tree/c176b7de9c2017d0fc1877659cea3bb6c330aafa)), and LDAC ([libldac](https://github.com/hegdi/libldacdec/tree/35bed54275a66197d05b505b3e1b7c514529cac2)) are included when you download the blueSPY software, so decoding streams in blueSPY that use these codecs will work out of the box. 
 
-If you wish to install the dynamic libraries in a location other than the default (which is "<Installation_Directory>\RFcreations\blueSPY\audio_codecs"), they can be downloaded [here](https://github.com/RFCreations/bluespy_codecs/actions). Click on the latest workflow run, scroll down to **Artifacts** and download the libraries for your OS of choice. Then move the files to an appropriate directory - listed [below](#directories-that-bluespy-will-look-in-for-audio-codec-dynamic-libraries) are the locations that blueSPY will look for audio codec plugins in Windows, MacOS, and Linux environments.
+If you wish to install the dynamic libraries in a location other than the default, they can be downloaded [here](https://github.com/RFCreations/bluespy_codecs/actions). Click on the latest workflow run, scroll down to **Artifacts** and download the libraries for your OS of choice. Then move the files to an appropriate directory - listed [below](#directories-that-bluespy-will-look-in-for-audio-codec-dynamic-libraries) are the locations that blueSPY will look for audio codec plugins in Windows, MacOS, and Linux environments.
 
 ### AAC Higher Quality Modes
 

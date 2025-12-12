@@ -2,17 +2,22 @@
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
 /**
- * @file LDAC.c
+ * @file LDAC.cpp
  * @brief LDAC codec plugin for blueSPY
  *
  * Implements LDAC decoding for AVDTP/A2DP Classic audio streams
- * using the ldacBT decoder library. LDAC is Sony's high-resolution audio
+ * using the libldacdec decoder library. LDAC is Sony's high-resolution audio
  * codec supporting up to 96kHz/24bit audio.
  */
 
 #include "bluespy_codec_interface.h"
 #include "codec_structures.h"
-#include "ldacdec.h"
+
+#define this p_this
+extern "C" {
+    #include "ldacdec.h"
+}
+#undef this
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -249,8 +254,10 @@ static uint32_t find_sync_byte(const uint8_t* data, uint32_t length)
 }
 
 /*------------------------------------------------------------------------------
- * Public API
+ * API Implementation
  *----------------------------------------------------------------------------*/
+
+extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void)
 {
@@ -416,3 +423,5 @@ BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id)
         stream_release(stream);
     }
 }
+
+} // end extern "C"
