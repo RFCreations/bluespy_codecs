@@ -6,7 +6,7 @@ project(bluespy_codecs)
 option(BUILD_AAC "Build AAC codec DLL" ON)
 option(BUILD_APTX "Build aptX codec DLL" ON)
 option(BUILD_LDAC "Build LDAC codec DLL" ON)
-option(BUILD_LC3 "Build LC3 codec DLL" ON)
+option(BUILD_LC3 "Build LC3 codec DLL" OFF)
 option(USE_STUB_BLUESPY "Use stub library for blueSPY (for CI builds)" OFF)
 
 # --------- Global Settings ---------
