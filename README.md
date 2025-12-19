@@ -7,7 +7,7 @@ The blueSPY protocol analyser software from RFCreations ([download here](https:/
 
 This repository serves two purposes:
 
-   1) It contains the source for some extra codecs that are included as plugins to blueSPY when you download the software. These are currently versions of **[AAC](https://github.com/RFCreations/bluespy_codecs/blob/aptx_v2/AAC.c), [aptX](https://github.com/RFCreations/bluespy_codecs/blob/aptx_v2/APTX.c), and [LDAC](https://github.com/RFCreations/bluespy_codecs/blob/aptx_v2/LDAC.c)** that do not contain any patented technology.
+   1) It contains the source for some extra codecs that are included as plugins to blueSPY when you download the software. These are currently versions of **[AAC](AAC.cpp), [aptX](APTX.cpp), and [LDAC](LDAC.cpp)** that do not contain any patented technology.
 
    2) To allow users to implement their own audio codecs and add them to blueSPY as plugins. This could be, for example, a decoder for the patented HE-AAC, or something completely new. See instructions for doing this below in [Adding New and/or Custom Codecs](#adding-new-andor-custom-codecs).
 
@@ -28,8 +28,8 @@ fdk-aac-stripped, and recompile the AAC binary. No other source changes are requ
 0. Ensure you have CMake and a suitable compiler/toolchain installed (MSVC/LLVM/GCC).
 1. Open a terminal (on Windows you may need to use the Visual Studio developer prompt).
 2. Run: `git clone --recurse-submodules https://github.com/RFCreations/bluespy_codecs.git && cd bluespy_codecs`
-3. Add your decoder file MYCODEC.c. You may wish to copy the structure of one of the provided examples. There is also a template called [TEMPLATE_CODEC.c](TEMPLATE_CODEC.c) if you would like to copy that as a starting point. 
-4. Implement the four functions in [bluespy_codec_interface.h](https://github.com/RFCreations/bluespy_codecs/blob/aptx_v2/include/bluespy_codec_interface.h) (init, new_codec_stream, codec_deinit, and codec_decode). See also [codec_structures.h](https://github.com/RFCreations/bluespy_codecs/blob/aptx_v2/include/codec_structures.h) for definitions of the data structures provided by blueSPY for use in codecs plugins.
+3. Add your decoder file MYCODEC.c. You may wish to copy the structure of one of the provided examples. There is also a template called [TEMPLATE_CODEC.cpp](TEMPLATE_CODEC.cpp) if you would like to copy that as a starting point. 
+4. Implement the four functions in [bluespy_codec_interface.h](include/bluespy_codec_interface.h) (init, new_codec_stream, codec_deinit, and codec_decode). See also [codec_structures.h](include/codec_structures.h) for definitions of the data structures provided by blueSPY for use in codecs plugins.
 5. Add a new secion at the bottom of CMakeLists.txt for MYCODEC, using the provided ones as examples.
 6. Run: `cmake --preset release && cmake --build build/release`
 7. Copy build/release/mycodec.{dll,so,dylib} to a directory as specified [below](#directories-that-bluespy-will-look-in-for-audio-codec-dynamic-libraries).
