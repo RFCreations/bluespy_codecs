@@ -40,8 +40,9 @@ typedef struct {
     bool has_last_seq;
     uint16_t last_rtp_seq;
     
-    /* Heuristic for concealment loop count */
-    int frames_per_packet; 
+    /* Gap Calculation Helpers */
+    int frames_per_packet;
+    uint32_t samples_per_frame;
 
     HANDLE_AACDECODER decoder;
     uint32_t sample_rate;
@@ -236,6 +237,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     stream->has_last_seq = false;
     stream->last_rtp_seq = 0;
     stream->frames_per_packet = 1; // Default to 1, updated dynamically
+    stream->samples_per_frame = 1024; // Standard AAC frame size, updated on decode
 
     /* Success */
     ret.error = 0;
@@ -259,6 +261,7 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
 
     /* Extract RTP Sequence Number */
     uint16_t rtp_seq = (uint16_t)((payload[2] << 8) | payload[3]);
+    uint32_t missing_samples = 0;
 
     if (stream->has_last_seq) {
         int32_t diff = (int32_t)rtp_seq - (int32_t)stream->last_rtp_seq;
@@ -275,30 +278,37 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
             return;
         }
 
+        // /* -------------------------------------------------------------
+        //  * Packet Loss Concealment (PLC) Not used by default.
+        //  *    If we missed a packet, we ask FDK-AAC to conceal X frames. Output the result immediately to the host to fill the timeline.
+        //  * ------------------------------------------------------------- */
+        // if (diff > 1) {
+        //     uint32_t missing_packets = (uint32_t)(diff - 1);
+        //     if (missing_packets > 50) {
+        //         missing_packets = 50; // Cap large jumps
+        //     }
+
+        //     uint32_t frames_to_conceal = missing_packets * stream->frames_per_packet;
+
+        //     for (uint32_t i = 0; i < frames_to_conceal; i++) {
+        //         AAC_DECODER_ERROR err = aacDecoder_DecodeFrame(stream->decoder, stream->pcm_buffer, PCM_BUFFER_SAMPLES, AACDEC_CONCEAL);
+                
+        //         if (err == AAC_DEC_OK) {
+        //             CStreamInfo* frame_info = aacDecoder_GetStreamInfo(stream->decoder);
+        //             if (frame_info) {
+        //                 uint32_t pcm_bytes = frame_info->frameSize * frame_info->numChannels * sizeof(int16_t);
+        //                 bluespy_add_continuous_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id);
+        //             }
+        //         }
+        //     }
+        // }
+
         /* -------------------------------------------------------------
-         * Packet Loss Concealment (PLC)
-         *    If we missed a packet, we ask FDK-AAC to conceal X frames.
-         *    Output the result immediately to the host to fill the timeline.
+         * Gap Detection
          * ------------------------------------------------------------- */
         if (diff > 1) {
             uint32_t missing_packets = (uint32_t)(diff - 1);
-            if (missing_packets > 50) {
-                missing_packets = 50; // Cap large jumps
-            }
-
-            uint32_t frames_to_conceal = missing_packets * stream->frames_per_packet;
-
-            for (uint32_t i = 0; i < frames_to_conceal; i++) {
-                AAC_DECODER_ERROR err = aacDecoder_DecodeFrame(stream->decoder, stream->pcm_buffer, PCM_BUFFER_SAMPLES, AACDEC_CONCEAL);
-                
-                if (err == AAC_DEC_OK) {
-                    CStreamInfo* frame_info = aacDecoder_GetStreamInfo(stream->decoder);
-                    if (frame_info) {
-                        uint32_t pcm_bytes = frame_info->frameSize * frame_info->numChannels * sizeof(int16_t);
-                        bluespy_add_continuous_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id);
-                    }
-                }
-            }
+            missing_samples = missing_packets * stream->frames_per_packet * stream->samples_per_frame;
         }
     }
 
@@ -342,6 +352,8 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
         if (frame_info) {
             total_samples += frame_info->frameSize * frame_info->numChannels;
             frames_in_this_packet++;
+
+            stream->samples_per_frame = frame_info->frameSize;
         }
         
         aac_data_len = bytes_valid;
@@ -353,7 +365,9 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
     }
 
     if (total_samples > 0) {
-        bluespy_add_continuous_audio((const uint8_t*)stream->pcm_buffer, total_samples * sizeof(int16_t), event_id);
+        bluespy_add_audio((const uint8_t*)stream->pcm_buffer, total_samples * sizeof(int16_t), event_id, missing_samples);
+    } else if (missing_samples > 0) {
+        bluespy_add_audio(NULL, 0, event_id, missing_samples);
     }
 }
 

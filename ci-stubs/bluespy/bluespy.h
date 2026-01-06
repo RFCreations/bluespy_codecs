@@ -1052,42 +1052,20 @@ typedef struct bluespy_audio_codec_decoded_format {
 } bluespy_audio_codec_decoded_format;
 
 /**
- * @brief Host callback for delivering decoded PCM audio from a codec plugin.
- *
- * A codec's @ref bluespy_audio_decode_t implementation must call this function
- * whenever it has decoded PCM samples available for the stream currently being
- * processed.  Multiple calls per SDU are permitted.
- *
- * @param pcm_data      Pointer to decoded PCM data (S16 LE interleaved).
- * @param pcm_data_len  Number of bytes at @p pcm_data.
- * @param source_id     Identifier for the source SDU / packet, used by the host
- *                      to correlate decoded audio with captured packets.
- *
- * @note
- * - The host owns the destination storage; the codec must keep its buffer valid
- *   only until the next @ref decode() call for the same stream.
- * - This function must be invoked only from within a codec's @ref decode()
- *   implementation.
- */
-BLUESPY_API void bluespy_add_decoded_audio(const uint8_t* pcm_data,
-                                                 uint32_t pcm_data_len,
-                                                 bluespy_event_id source_id);
-
-/**
- * @brief Host callback for delivering decoded PCM from continuous stream codecs.
+ * @brief Host callback for delivering decoded PCM audio.
  * 
- * Use this instead of @ref bluespy_add_decoded_audio when the codec is 
- * continuous (e.g., aptX, SBC) and RTP timestamps should be ignored in favor 
- * of gapless playback.
- * 
- * @param pcm_data      Pointer to decoded PCM data (S16 LE interleaved).
- * @param pcm_data_len  Number of bytes at @p pcm_data.
- * @param source_id     Identifier for the source SDU / packet, used by the host
- *                      to correlate decoded audio with captured packets.
+ * @param pcm_data         Pointer to decoded PCM data (S16 LE interleaved).
+ * @param pcm_data_len     Number of bytes at @p pcm_data.
+ * @param source_id        Identifier for the source SDU / packet, used by the host
+ *                         to correlate decoded audio with captured packets. Usually
+ *                         passed from codec_decode.
+ * @param missing_samples  Number of samples (per channel) lost immediately before this packet.
+ *                         Pass 0 if continuous or unknown.
  */
-BLUESPY_API void bluespy_add_continuous_audio(const uint8_t* pcm_data,
-                                              uint32_t pcm_data_len,
-                                              bluespy_event_id source_id);                                                 
+BLUESPY_API void bluespy_add_audio(const uint8_t* pcm_data,
+                                   uint32_t pcm_data_len,
+                                   bluespy_event_id source_id,
+                                   uint32_t missing_samples);                                                 
 
 /**
  * @brief Function pointer type for the codec_decode function.

@@ -67,6 +67,13 @@ typedef struct {
     bool in_use;
     bool initialized;
 
+    /* RTP sequence tracking */
+    bool has_last_seq;
+    uint16_t last_rtp_seq;
+
+    /* Gap estimation heuristic */
+    uint32_t samples_per_packet;
+
     /* ldacBT decoder instance */
     ldacdec_t decoder;
 
@@ -313,6 +320,9 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     }
 
     stream->initialized = true;
+    stream->has_last_seq = false;
+    stream->last_rtp_seq = 0;
+    stream->samples_per_packet = 128 * stream->channels; // conservative initial guess
 
     /* Success */
     ret.error = 0;
@@ -325,12 +335,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(
-    bluespy_audiostream_id stream_id,
-    const uint8_t* payload,
-    uint32_t payload_len,
-    bluespy_event_id event_id,
-    uint64_t sequence_number)
+BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number)
 {
     (void)sequence_number;
 
@@ -342,6 +347,29 @@ BLUESPY_CODEC_API void codec_decode(
     if (!payload || payload_len < MIN_PAYLOAD_SIZE) {
         return;
     }
+
+    /* Extract RTP sequence number and calculate gap */
+    uint16_t rtp_seq = (uint16_t)(payload[2] << 8) | payload[3];
+    uint32_t missing_samples = 0;
+
+    if (stream->has_last_seq) {
+        int32_t diff = (int32_t)rtp_seq - (int32_t)stream->last_rtp_seq;
+
+        if (diff < -32768) {
+            diff += 65536;
+        } else if (diff > 32768) {
+            diff -= 65536;
+        }
+
+        if (diff > 1) {
+            // Gap detected
+            uint32_t missing_packets = (uint32_t)(diff - 1);
+            missing_samples = missing_packets * stream->samples_per_packet;
+        }
+    }
+
+    stream->last_rtp_seq = rtp_seq;
+    stream->has_last_seq = true;
 
     /* Strip RTP header */
     uint32_t rtp_len = get_rtp_header_length(payload, payload_len);
@@ -403,17 +431,19 @@ BLUESPY_CODEC_API void codec_decode(
         total_samples += samples_decoded;
     }
 
-    if (total_samples == 0) {
-        return;
+    if (total_samples > 0) {
+        stream->samples_per_packet = (uint32_t)total_samples / stream->channels;
+        
+        /* Update stream parameters from decoder (may change during stream) */
+        stream->sample_rate = ldacdecGetSampleRate(&stream->decoder);
+        stream->channels = (uint8_t)ldacdecGetChannelCount(&stream->decoder);
+
+        /* Deliver decoded audio */
+        uint32_t pcm_bytes = (uint32_t)(total_samples * sizeof(int16_t));
+        bluespy_add_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id, missing_samples);
+    } else if (missing_samples > 0) {
+        bluespy_add_audio(NULL, 0, event_id, missing_samples);
     }
-
-    /* Update stream parameters from decoder (may change during stream) */
-    stream->sample_rate = ldacdecGetSampleRate(&stream->decoder);
-    stream->channels = (uint8_t)ldacdecGetChannelCount(&stream->decoder);
-
-    /* Deliver decoded audio */
-    uint32_t pcm_bytes = (uint32_t)(total_samples * sizeof(int16_t));
-    bluespy_add_decoded_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id);
 }
 
 BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id)
