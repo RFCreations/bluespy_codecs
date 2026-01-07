@@ -16,16 +16,15 @@
 #include "codec_structures.h"
 #include <lc3.h>
 
-#include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 /*------------------------------------------------------------------------------
  * Constants
  *----------------------------------------------------------------------------*/
 
-#define MAX_STREAMS  16
 #define MAX_CHANNELS 8
 
 /** BASE Service UUID for Basic Audio Announcement (0x1851) */
@@ -86,8 +85,8 @@ typedef struct {
  * @brief Per-stream decoder state
  */
 typedef struct {
-    bluespy_audiostream_id stream_id;
-    bool in_use;
+    bluespy_audiostream_id parent_stream_id;
+    bool initialized;
 
     /* Configuration */
     LC3_config config;
@@ -105,12 +104,6 @@ typedef struct {
     uint64_t last_seq;
     bool have_seq;
 } LC3_stream;
-
-/*------------------------------------------------------------------------------
- * Static Data
- *----------------------------------------------------------------------------*/
-
-static LC3_stream g_streams[MAX_STREAMS];
 
 /*------------------------------------------------------------------------------
  * Utility Functions
@@ -182,60 +175,23 @@ static inline uint16_t read_le16(const uint8_t* p)
 }
 
 /*------------------------------------------------------------------------------
- * Stream Handle Management
+ * Resource Management
  *----------------------------------------------------------------------------*/
 
-/**
- * @brief Find stream by ID
- */
-static LC3_stream* stream_find(bluespy_audiostream_id id)
+static void stream_free_resources(LC3_stream* stream)
 {
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (g_streams[i].in_use && g_streams[i].stream_id == id) {
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
-/**
- * @brief Allocate a new stream slot
- */
-static LC3_stream* stream_allocate(bluespy_audiostream_id id)
-{
-    /* Check if already exists */
-    LC3_stream* existing = stream_find(id);
-    if (existing) {
-        return existing;
-    }
-
-    /* Find free slot */
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (!g_streams[i].in_use) {
-            memset(&g_streams[i], 0, sizeof(g_streams[i]));
-            g_streams[i].in_use = true;
-            g_streams[i].stream_id = id;
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
-/**
- * @brief Release stream and free all resources
- */
-static void stream_release(LC3_stream* stream)
-{
-    if (!stream || !stream->in_use) {
-        return;
-    }
+    if (!stream) return;
 
     for (int i = 0; i < MAX_CHANNELS; ++i) {
-        free(stream->decoder_mem[i]);
+        if (stream->decoder_mem[i]) {
+            free(stream->decoder_mem[i]);
+            stream->decoder_mem[i] = NULL;
+        }
     }
-    free(stream->pcm_buffer);
-
-    memset(stream, 0, sizeof(*stream));
+    if (stream->pcm_buffer) {
+        free(stream->pcm_buffer);
+        stream->pcm_buffer = NULL;
+    }
 }
 
 /*------------------------------------------------------------------------------
@@ -490,7 +446,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     bluespy_audio_codec_init_ret ret = {
         .error = -1,
         .format = {0},
-        .fns = {0}
+        .fns = {0},
+        .context_handle = 0
     };
 
     /* Validate parameters */
@@ -504,11 +461,13 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     }
 
     /* Allocate stream handle */
-    LC3_stream* stream = stream_allocate(stream_id);
+    LC3_stream* stream = (LC3_stream*)calloc(1, sizeof(LC3_stream));
     if (!stream) {
         ret.error = -2;
         return ret;
     }
+
+    stream->parent_stream_id = stream_id;
 
     /* Extract LTV configuration from container */
     const uint8_t* ltv = NULL;
@@ -522,7 +481,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     }
 
     if (!parsed) {
-        stream_release(stream);
+        stream_free_resources(stream);
+        free(stream);
         ret.error = -3;
         return ret;
     }
@@ -537,13 +497,16 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 
     /* Initialise decoders */
     if (!init_decoders(stream)) {
-        stream_release(stream);
+        stream_free_resources(stream);
+        free(stream);
         ret.error = -4;
         return ret;
     }
 
     /* Success */
     ret.error = 0;
+    ret.context_handle = (uintptr_t)stream;
+
     ret.format.sample_rate = stream->config.sample_rate_hz;
     ret.format.n_channels = stream->config.channels;
     ret.format.bits_per_sample = 16;
@@ -553,9 +516,9 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number)
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number)
 {
-    LC3_stream* stream = stream_find(stream_id);
+    LC3_stream* stream = (LC3_stream*)context;
     if (!stream || !payload || payload_len == 0) {
         return;
     }
@@ -606,18 +569,19 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
     }
 
     /* Deliver decoded audio to host */
-    bluespy_add_decoded_audio((const uint8_t*)pcm, (uint32_t)stream->pcm_buffer_bytes, event_id);
+    bluespy_add_audio((const uint8_t*)pcm, (uint32_t)stream->pcm_buffer_bytes, event_id, 0);
 
     /* Update sequence tracking */
     stream->last_seq = sequence_number;
     stream->have_seq = true;
 }
 
-BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id)
+BLUESPY_CODEC_API void codec_deinit(uintptr_t context)
 {
-    LC3_stream* stream = stream_find(stream_id);
+    LC3_stream* stream = (LC3_stream*)context;
     if (stream) {
-        stream_release(stream);
+        stream_free_resources(stream);
+        free(stream);
     }
 }
 

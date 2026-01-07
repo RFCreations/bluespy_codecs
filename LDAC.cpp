@@ -19,8 +19,8 @@ extern "C" {
 }
 #undef this
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -28,7 +28,6 @@ extern "C" {
  * Constants
  *----------------------------------------------------------------------------*/
 
-#define MAX_STREAMS             16
 #define PCM_BUFFER_SAMPLES      8192    /* Max 16-bit samples per decode cycle */
 #define RTP_HEADER_SIZE         12      /* Fixed RTP header size (excludes CSRC) */
 #define MIN_PAYLOAD_SIZE        20      /* Minimum valid LDAC packet size */
@@ -63,8 +62,7 @@ typedef enum {
  * @brief Per-stream LDAC decoder state
  */
 typedef struct {
-    bluespy_audiostream_id stream_id;
-    bool in_use;
+    bluespy_audiostream_id parent_stream_id;
     bool initialized;
 
     /* RTP sequence tracking */
@@ -84,64 +82,6 @@ typedef struct {
     /* Output buffer */
     int16_t pcm_buffer[PCM_BUFFER_SAMPLES];
 } LDAC_stream;
-
-/*------------------------------------------------------------------------------
- * Static Data
- *----------------------------------------------------------------------------*/
-
-static LDAC_stream g_streams[MAX_STREAMS];
-
-/*------------------------------------------------------------------------------
- * Stream Handle Management
- *----------------------------------------------------------------------------*/
-
-/**
- * @brief Find existing stream by ID
- */
-static LDAC_stream* stream_find(bluespy_audiostream_id id)
-{
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (g_streams[i].in_use && g_streams[i].stream_id == id) {
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
-/**
- * @brief Allocate a new stream slot
- */
-static LDAC_stream* stream_allocate(bluespy_audiostream_id id)
-{
-    /* Check if already exists */
-    LDAC_stream* existing = stream_find(id);
-    if (existing) {
-        return existing;
-    }
-
-    /* Find free slot */
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (!g_streams[i].in_use) {
-            memset(&g_streams[i], 0, sizeof(g_streams[i]));
-            g_streams[i].in_use = true;
-            g_streams[i].stream_id = id;
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
-/**
- * @brief Release stream and free resources
- */
-static void stream_release(LDAC_stream* stream)
-{
-    if (!stream || !stream->in_use) {
-        return;
-    }
-
-    memset(stream, 0, sizeof(*stream));
-}
 
 /*------------------------------------------------------------------------------
  * Configuration Parsing
@@ -279,7 +219,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     bluespy_audio_codec_init_ret ret = {
         .error = -1,
         .format = {0},
-        .fns = {0}
+        .fns = {0},
+        .context_handle = 0
     };
 
     /* Only handle AVDTP container */
@@ -299,22 +240,23 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
         return ret;
     }
 
-    /* Allocate stream handle */
-    LDAC_stream* stream = stream_allocate(stream_id);
+    
+    /* Allocate State */
+    LDAC_stream* stream = (LDAC_stream*)calloc(1, sizeof(LDAC_stream));
     if (!stream) {
         ret.error = -3;
         return ret;
     }
-
     /* Parse configuration */
     const uint8_t* codec_info = cap->Media_Codec_Specific_Information;
     stream->sample_rate = parse_sample_rate(codec_info);
     stream->channels = parse_channels(codec_info);
+    stream->parent_stream_id = stream_id;
 
     /* Initialise LDAC decoder */
     memset(&stream->decoder, 0, sizeof(stream->decoder));
     if (ldacdecInit(&stream->decoder) < 0) {
-        stream_release(stream);
+        free(stream);
         ret.error = -4;
         return ret;
     }
@@ -326,6 +268,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 
     /* Success */
     ret.error = 0;
+    ret.context_handle = (uintptr_t)stream;
+
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
     ret.format.bits_per_sample = 16;
@@ -335,11 +279,11 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number)
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number)
 {
     (void)sequence_number;
 
-    LDAC_stream* stream = stream_find(stream_id);
+    LDAC_stream* stream = (LDAC_stream*)context;
     if (!stream || !stream->initialized) {
         return;
     }
@@ -446,11 +390,11 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
     }
 }
 
-BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id)
+BLUESPY_CODEC_API void codec_deinit(uintptr_t context)
 {
-    LDAC_stream* stream = stream_find(stream_id);
+    LDAC_stream* stream = (LDAC_stream*)context;
     if (stream) {
-        stream_release(stream);
+        free(stream);
     }
 }
 

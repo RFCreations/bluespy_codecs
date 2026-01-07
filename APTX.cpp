@@ -8,19 +8,20 @@
 
 #include "bluespy_codec_interface.h"
 #include "codec_structures.h"
+
 extern "C" {
     #include "freeaptx.h"
 }
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*------------------------------------------------------------------------------
  * Constants
  *----------------------------------------------------------------------------*/
 
-#define MAX_STREAMS             16
 #define PCM_BUFFER_SAMPLES      8192    /* Max 16-bit samples per decode */
 #define RAW_BUFFER_BYTES        (PCM_BUFFER_SAMPLES * 3)  /* 24-bit input */
 
@@ -35,8 +36,7 @@ extern "C" {
  *----------------------------------------------------------------------------*/
 
 typedef struct {
-    bluespy_audiostream_id stream_id;
-    bool in_use;
+    bluespy_audiostream_id parent_stream_id;
     bool initialized;
 
     struct aptx_context* decoder;
@@ -50,42 +50,9 @@ typedef struct {
     int16_t pcm_buffer[PCM_BUFFER_SAMPLES];
 } aptX_stream;
 
-static aptX_stream g_streams[MAX_STREAMS];
-
 /*------------------------------------------------------------------------------
  * Helper Functions
  *----------------------------------------------------------------------------*/
-
-static aptX_stream* stream_find(bluespy_audiostream_id id) {
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (g_streams[i].in_use && g_streams[i].stream_id == id) return &g_streams[i];
-    }
-    return NULL;
-}
-
-static aptX_stream* stream_allocate(bluespy_audiostream_id id) {
-    aptX_stream* existing = stream_find(id);
-    if (existing) return existing;
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (!g_streams[i].in_use) {
-            memset(&g_streams[i], 0, sizeof(g_streams[i]));
-            g_streams[i].in_use = true;
-            g_streams[i].stream_id = id;
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
-static void stream_release(aptX_stream* stream) {
-    if (!stream || !stream->in_use) {
-        return;
-    }
-    if (stream->decoder) {
-        aptx_finish(stream->decoder);
-    }
-    memset(stream, 0, sizeof(*stream));
-}
 
 static inline uint32_t read_le32(const uint8_t* p) {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
@@ -145,8 +112,14 @@ BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
 }
 
 BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info) {
-    bluespy_audio_codec_init_ret ret = { .error = -1 };
+    bluespy_audio_codec_init_ret ret = {
+        .error = -1,
+        .format = {0},
+        .fns = {0},
+        .context_handle = 0
+    };
     
+    /* Validate Config */
     if (!info || info->container != BLUESPY_CODEC_AVDTP) {
         return ret;
     }
@@ -164,7 +137,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
         return ret;
     }
 
-    aptX_stream* stream = stream_allocate(stream_id);
+    /* Allocate State */
+    aptX_stream* stream = (aptX_stream*)calloc(1, sizeof(aptX_stream));
     if (!stream) {
         ret.error = -2;
         return ret;
@@ -175,22 +149,23 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
         stream->decoder = NULL;
     }
 
+    /* Init Decoder */
     stream->is_hd = is_hd;
     stream->sample_rate = parse_sample_rate(cap->Media_Codec_Specific_Information[5]);
     stream->channels = 2;
     stream->decoder = aptx_init(is_hd);
     if (!stream->decoder) {
-        stream_release(stream);
+        free(stream);
         ret.error = -3;
         return ret;
     }
 
     stream->initialized = true;
-    
-    /* Stats */
     stream->total_frames = 0;
 
     ret.error = 0;
+    ret.context_handle = (uintptr_t)stream;
+
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
     ret.format.bits_per_sample = 16;
@@ -199,10 +174,10 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number) {
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number) {
     (void)sequence_number;
 
-    aptX_stream* stream = stream_find(stream_id);
+    aptX_stream* stream = (aptX_stream*)context;
     if (!stream || !stream->initialized || !stream->decoder) {
         return;
     }
@@ -210,7 +185,7 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
         return;
     }
 
-    const uint32_t missing_samples = 0;
+    const uint32_t missing_samples = 0; // NOTE this plugin assumes RAW aptX frames (no RTP headers) so gap detection is disabled (missing_samples = 0)
 
     /* Decode (Directly on payload, no header stripping) */
     size_t raw_bytes_written = 0;
@@ -241,9 +216,14 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
     }
 }
 
-BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id) {
-    aptX_stream* stream = stream_find(stream_id);
-    if (stream) stream_release(stream);
+BLUESPY_CODEC_API void codec_deinit(uintptr_t context) {
+    aptX_stream* stream = (aptX_stream*)context;
+    if (stream) {
+        if (stream->decoder) {
+            aptx_finish(stream->decoder);
+        }
+        free(stream);
+    }
 }
 
 } // end extern "C"

@@ -1071,11 +1071,10 @@ BLUESPY_API void bluespy_add_audio(const uint8_t* pcm_data,
  * @brief Function pointer type for the codec_decode function.
  * 
  * Called once per encoded packet or frame to produce decoded PCM audio data.
- * The implementation must call @ref bluespy_add_decoded_audio() zero or more
- * times to deliver decoded samples to the host; the function itself returns void.
  * 
- * @param stream_id Identifier for the active audio stream. Multiple concurrent streams may exist,
- *           so codecs must maintain separate state per stream ID.
+ * @param context Opaque handle to the codec instance state. This is the 
+ *                value returned in @ref bluespy_audio_codec_init_ret::context_handle 
+ *                during initialization.
  * @param payload Pointer to the encoded audio packet or frame.
  * 
  * **For Classic (A2DP/AVDTP):** This buffer represents the contents of a single
@@ -1088,12 +1087,10 @@ BLUESPY_API void bluespy_add_audio(const uint8_t* pcm_data,
  * Payload is one reconstructed ISOAL SDU.
  * 
  * @param payload_len Length of the encoded data in bytes.
- * @param event_id Capture event identifier for this SDU or packet; used by the
- *                 host for packet-to-audio correlation in visualization.
- * @param sequence_number 64-bit monotonic sequence assigned by the host for
- *                        ordering; optional for decoder state tracking.
+ * @param event_id Capture event identifier for this SDU.
+ * @param sequence_number 64-bit monotonic sequence assigned by the host.
  */
-typedef void (*bluespy_audio_decode_t)(bluespy_audiostream_id stream_id, 
+typedef void (*bluespy_audio_decode_t)(uintptr_t context, 
                                        const uint8_t* payload,
                                        const uint32_t payload_len,
                                        bluespy_event_id event_id,
@@ -1103,14 +1100,11 @@ typedef void (*bluespy_audio_decode_t)(bluespy_audiostream_id stream_id,
  * @brief Function-pointer type for the codec de-initialisation function.
  *
  * Called when an audio stream ends so the codec can release state and resources.
- * After this call, the given stream ID will not be used again for this instance.
  *
- * @param stream_id Identifier of the audio stream being deinitialised.
- *
- * @note Must be re-entrant and tolerate redundant calls for a stream that is
- *       already de-initialised (should simply no-op).
+* @param context Opaque handle to the codec instance state to be freed.
+ *               This pointer should be cast back to the internal state struct and freed.
  */
-typedef void (*bluespy_audio_codec_deinit_t)(bluespy_audiostream_id stream_id);
+typedef void (*bluespy_audio_codec_deinit_t)(uintptr_t context);
 
 /**
  * @brief Collection of function pointers exposed by a codec implementation.
@@ -1133,6 +1127,13 @@ typedef struct bluespy_audio_codec_init_ret {
     int error; // <- 0 = success; < 0 = failure.
     bluespy_audio_codec_decoded_format format;
     bluespy_audio_codec_funcs fns;
+    /**
+     * @brief Opaque handle to the plugin-allocated state.
+     * * On success, the plugin must set this to a pointer (cast to uintptr_t)
+     * representing the instance state (e.g., `(uintptr_t)state_struct_ptr`).
+     * The host will pass this value back to decode() and deinit().
+     */
+    uintptr_t context_handle;
 } bluespy_audio_codec_init_ret;
 
 /**
@@ -1154,10 +1155,10 @@ typedef struct bluespy_audio_codec_init_ret {
  *     const bluespy_audio_codec_info* info);
  * @endcode
  * 
- * @param stream_id   Unique identifier for the new stream.  The codec must use
- *             this to manage state for concurrent streams; the same ID
- *             will be provided to all future @ref decode() and
- *             @ref deinit() calls for that stream.
+ * @param stream_id Unique identifier for the new stream. //TODO not sure if we actually need this
+ *                  NOTE: This is provided primarily for logging or correlation
+ *                  with host-side objects. The codec is NOT required to use this
+ *                  for state lookups, as it should return a context_handle instead.
  * @param info Pointer to container-specific configuration data. The
  *             memory is valid only during this call; codecs must copy
  *             anything they need.

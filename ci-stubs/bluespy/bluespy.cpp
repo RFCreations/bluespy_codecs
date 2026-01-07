@@ -16,8 +16,5 @@
 #endif
 
 extern "C" {
-
-BLUESPY_API void bluespy_add_decoded_audio(const uint8_t*, uint32_t, bluespy_event_id) {}
-BLUESPY_API void bluespy_add_continuous_audio(const uint8_t*, uint32_t, bluespy_event_id) {}
-
+BLUESPY_API void bluespy_add_audio(const uint8_t*, uint32_t, bluespy_event_id, uint32_t) {}
 }

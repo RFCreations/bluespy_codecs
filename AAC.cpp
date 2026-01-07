@@ -6,12 +6,12 @@
  * @brief AAC codec plugin for blueSPY
  */
 
+#include "aacdecoder_lib.h"
 #include "bluespy_codec_interface.h"
 #include "codec_structures.h"
-#include "aacdecoder_lib.h"
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,7 +19,6 @@
  * Constants
  *----------------------------------------------------------------------------*/
 
-#define MAX_STREAMS         16
 #define PCM_BUFFER_SAMPLES  16384 /* Max samples per decode cycle */
 #define RTP_HEADER_SIZE     12 /* Fixed RTP header size (excludes CSRC) */
 #define MIN_AAC_CONFIG_LEN  6 /* Minimum config length: Service_Category(1) + LOSC(1) + Media_Type(1) + Codec_Type(1) + Info(2+) */
@@ -32,8 +31,7 @@
  * @brief Per-stream AAC decoder state
  */
 typedef struct {
-    bluespy_audiostream_id stream_id;
-    bool in_use;
+    bluespy_audiostream_id parent_stream_id;
     bool initialized;
 
     /* RTP Sequence Tracking */
@@ -53,59 +51,8 @@ typedef struct {
 } AAC_stream;
 
 /*------------------------------------------------------------------------------
- * Static Data
- *----------------------------------------------------------------------------*/
-
-static AAC_stream g_streams[MAX_STREAMS];
-
-/*------------------------------------------------------------------------------
  * Helper Functions
  *----------------------------------------------------------------------------*/
-
- /**
- * @brief Find existing stream by ID
- */
-static AAC_stream* stream_find(bluespy_audiostream_id id) {
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (g_streams[i].in_use && g_streams[i].stream_id == id) {
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
-/**
- * @brief Allocate a new stream slot
- */
-static AAC_stream* stream_allocate(bluespy_audiostream_id id) {
-    AAC_stream* existing = stream_find(id);
-    if (existing) {
-        return existing;
-    }
-    for (int i = 0; i < MAX_STREAMS; ++i) {
-        if (!g_streams[i].in_use) {
-            memset(&g_streams[i], 0, sizeof(g_streams[i]));
-            g_streams[i].in_use = true;
-            g_streams[i].stream_id = id;
-            return &g_streams[i];
-        }
-    }
-    return NULL;
-}
-
-/**
- *  @brief Release stream and free resources
- */
-static void stream_release(AAC_stream* stream) {
-    if (!stream || !stream->in_use) {
-        return;
-    }   
-    if (stream->decoder) {
-        aacDecoder_Close(stream->decoder);
-    }
-    memset(stream, 0, sizeof(*stream));
-}
-
 
 /**
  * @brief Parse sample rate from AAC Media Codec Specific Information
@@ -183,7 +130,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     bluespy_audio_codec_init_ret ret = {
         .error = -1,
         .format = {0},
-        .fns = {0}
+        .fns = {0},
+        .context_handle = 0
     };
 
     if (!info || info->container != BLUESPY_CODEC_AVDTP) {
@@ -202,27 +150,27 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
         return ret; 
     }
 
-    /* Allocate stream handle */
-    AAC_stream* stream = stream_allocate(stream_id);
-    if (!stream) { 
-        ret.error = -3; 
-        return ret; 
-    }
-
     /* Parse codec configuration */
     const uint8_t* codec_info = cap->Media_Codec_Specific_Information;
     uint32_t sample_rate = parse_sample_rate(codec_info);
-    if (sample_rate == 0) { 
-        stream_release(stream); 
+    if (sample_rate == 0) {  
         ret.error = -4;
-         return ret;
+        return ret;
     }
     uint8_t channels = parse_channels(codec_info);
 
+    /* Allocate State */
+    AAC_stream* stream = (AAC_stream*)calloc(1, sizeof(AAC_stream));
+    if (!stream) {
+        ret.error = -3;
+        return ret;
+    }
+
     /* Create FDK-AAC decoder */
+    stream->parent_stream_id = stream_id;
     stream->decoder = aacDecoder_Open(TT_MP4_LATM_MCP1, 1);
     if (!stream->decoder) { 
-        stream_release(stream); 
+        free(stream); 
         ret.error = -5; 
         return ret;
     }
@@ -241,6 +189,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 
     /* Success */
     ret.error = 0;
+    ret.context_handle = (uintptr_t)stream;
+
     ret.format.sample_rate = sample_rate;
     ret.format.n_channels = channels;
     ret.format.bits_per_sample = 16;
@@ -250,8 +200,9 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number) {
-    AAC_stream* stream = stream_find(stream_id);
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number) {
+    AAC_stream* stream = (AAC_stream*)context;
+
     if (!stream || !stream->initialized || !stream->decoder) {
         return;
     }
@@ -371,10 +322,13 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, const uint
     }
 }
 
-BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id) {
-    AAC_stream* stream = stream_find(stream_id);
+BLUESPY_CODEC_API void codec_deinit(uintptr_t context) {
+    AAC_stream* stream = (AAC_stream*)context;
     if (stream) {
-        stream_release(stream);
+        if (stream->decoder) {
+            aacDecoder_Close(stream->decoder);
+        }
+        free(stream);
     }
 }
 

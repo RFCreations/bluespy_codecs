@@ -59,8 +59,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void);
  * 
  * The host calls this function when an audio stream has been discovered and requires decoding.
  * 
- * @param stream_id Unique identifier assigned to this stream by the host.
- * @param info Pointer to container-specific codec configuration (valid only for the duration of this call).
+ * @param stream_id Unique identifier for reference/logging.
+ * @param info Pointer to codec configuration.
  * 
  * @return 
  *  - On success: structure with error == 0 and valid function pointers. 
@@ -72,7 +72,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 /**
  * @brief Decode on codec frame or sequence from the capture. 
  * 
- * @param[in] stream_id Unique identifier assigned to this stream by the host.
+ * @param[in] context Opaque handle to the codec instance state.
  * @param[in] payload Pointer to encoded bytes.
  * @param[in] payload_len Length in bytes of @p payload.
  * @param[out] event_id Capture event identifier corresponding to this SDU.
@@ -89,7 +89,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
  *     frames or a partial frame. The decoder must handle reconstruction.
  */
 
-BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id, 
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, 
                                     const uint8_t* payload,
                                     const uint32_t payload_len,
                                     bluespy_event_id event_id,
@@ -98,15 +98,12 @@ BLUESPY_CODEC_API void codec_decode(bluespy_audiostream_id stream_id,
 /**
  * @brief De-initialise and release all state for a codec stream.
  * 
- * Called when a stream ends or is no longer required. Implementations must
- * free any dynamic allocations and may close decoder handles.
- * The function must tolerate being called multiple times for the same ID,
- * performing no operation after the first successful cleanup.
+ * Implementations must cast @p context back to their internal state pointer,
+ * free any dynamic allocations, and close decoder handles.
  * 
- * @param[in] stream_id Unique identifier assigned to this stream by the host.
- * 
+ * @param[in] context Opaque handle to the codec instance state.
  */
-BLUESPY_CODEC_API void codec_deinit(bluespy_audiostream_id stream_id);
+BLUESPY_CODEC_API void codec_deinit(uintptr_t context);
 
 #ifdef __cplusplus
 }
