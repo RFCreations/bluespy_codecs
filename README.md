@@ -13,7 +13,7 @@ This repository serves two purposes:
 
 ## AAC, aptX, and LDAC
 
-As explained above, plugins for decoding AAC Low Complexity ([aac-stripped](https://github.com/RFCreations/fdk-aac-stripped/tree/529b87452cd33d45e1d0a5066d20b64f10b38845)), aptX and aptX HD ([libfreeaptx](https://github.com/regularhunter/libfreeaptx/tree/c176b7de9c2017d0fc1877659cea3bb6c330aafa)), and LDAC ([libldac](https://github.com/hegdi/libldacdec/tree/35bed54275a66197d05b505b3e1b7c514529cac2)) are included when you download the blueSPY software, so decoding streams in blueSPY that use these codecs will work out of the box. 
+As explained above, plugins for decoding AAC Low Complexity ([aac-stripped](https://github.com/RFCreations/fdk-aac-stripped/tree/529b87452cd33d45e1d0a5066d20b64f10b38845)), aptX and aptX HD ([libfreeaptx](https://github.com/RFCreations/libfreeaptx/tree/c176b7de9c2017d0fc1877659cea3bb6c330aafa)), and LDAC ([libldac](https://github.com/RFCreations/libldacdec/tree/35bed54275a66197d05b505b3e1b7c514529cac2)) are included when you download the blueSPY software, so decoding streams in blueSPY that use these codecs will work out of the box. 
 
 If you wish to install the dynamic libraries in a location other than the default, they can be downloaded [here](https://github.com/RFCreations/bluespy_codecs/actions). Click on the latest workflow run, scroll down to **Artifacts** and download the libraries for your OS of choice. Then move the files to an appropriate directory - listed [below](#directories-that-bluespy-will-look-in-for-audio-codec-dynamic-libraries) are the locations that blueSPY will look for audio codec plugins in Windows, MacOS, and Linux environments.
 
@@ -28,9 +28,9 @@ fdk-aac-stripped, and recompile the AAC binary. No other source changes are requ
 0. Ensure you have CMake and a suitable compiler/toolchain installed (MSVC/LLVM/GCC).
 1. Open a terminal (on Windows you may need to use the Visual Studio developer prompt).
 2. Run: `git clone --recurse-submodules https://github.com/RFCreations/bluespy_codecs.git && cd bluespy_codecs`
-3. Add your decoder file MYCODEC.c. You may wish to copy the structure of one of the provided examples. There is also a template called [TEMPLATE_CODEC.cpp](TEMPLATE_CODEC.cpp) if you would like to copy that as a starting point. 
+3. Add your decoder file MYCODEC.cpp. You may wish to copy the structure of one of the provided examples. There is also a template called [TEMPLATE_CODEC.cpp](TEMPLATE_CODEC.cpp) if you would like to copy that as a starting point. 
 4. Implement the four functions in [bluespy_codec_interface.h](include/bluespy_codec_interface.h) (init, new_codec_stream, codec_deinit, and codec_decode). See also [codec_structures.h](include/codec_structures.h) for definitions of the data structures provided by blueSPY for use in codecs plugins.
-5. Add a new secion at the bottom of CMakeLists.txt for MYCODEC, using the provided ones as examples.
+5. Add a new secion at the bottom of CMakeLists.txt for MYCODEC, using the provided ones as examples. Also add any submodules into .gitmodules.
 6. Run: `cmake --preset release && cmake --build build/release`
 7. Copy build/release/mycodec.{dll,so,dylib} to a directory as specified [below](#directories-that-bluespy-will-look-in-for-audio-codec-dynamic-libraries).
 

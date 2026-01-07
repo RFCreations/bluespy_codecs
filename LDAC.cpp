@@ -12,12 +12,7 @@
 
 #include "bluespy_codec_interface.h"
 #include "codec_structures.h"
-
-#define this p_this
-extern "C" {
-    #include "ldacdec.h"
-}
-#undef this
+#include "ldacdec.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -208,7 +203,7 @@ extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void)
 {
-    return (bluespy_audio_codec_lib_info){
+    return bluespy_audio_codec_lib_info{
         .api_version = BLUESPY_AUDIO_API_VERSION,
         .codec_name = "LDAC"
     };

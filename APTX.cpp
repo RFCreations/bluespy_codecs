@@ -105,7 +105,7 @@ static size_t convert_24bit_to_16bit(const uint8_t* src, size_t src_bytes, int16
 extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
-    return (bluespy_audio_codec_lib_info){ 
+    return bluespy_audio_codec_lib_info{ 
         .api_version = BLUESPY_AUDIO_API_VERSION, 
         .codec_name = "aptX" 
     };

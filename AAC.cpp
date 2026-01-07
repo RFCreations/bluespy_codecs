@@ -120,7 +120,7 @@ static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_l
 extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
-    return (bluespy_audio_codec_lib_info){
+    return bluespy_audio_codec_lib_info{
         .api_version = BLUESPY_AUDIO_API_VERSION,
         .codec_name = "AAC"
     };
