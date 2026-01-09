@@ -28,7 +28,7 @@
  *----------------------------------------------------------------------------*/
 
  /**
- * @brief Per-stream AAC decoder state
+ * @brief AAC decoder state
  */
 typedef struct {
     bluespy_audiostream_id parent_stream_id;

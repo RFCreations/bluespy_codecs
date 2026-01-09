@@ -54,7 +54,7 @@ typedef enum {
  *----------------------------------------------------------------------------*/
 
 /**
- * @brief Per-stream LDAC decoder state
+ * @brief LDAC decoder state
  */
 typedef struct {
     bluespy_audiostream_id parent_stream_id;

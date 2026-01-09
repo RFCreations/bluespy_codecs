@@ -25,9 +25,14 @@ extern "C" {
 #define PCM_BUFFER_SAMPLES      8192    /* Max 16-bit samples per decode */
 #define RAW_BUFFER_BYTES        (PCM_BUFFER_SAMPLES * 3)  /* 24-bit input */
 
+/** Qualcomm Vendor ID (little-endian: 0x4F000000) */
 #define VENDOR_ID_QUALCOMM      0x0000004F
+
+/** Qualcomm aptX Codec IDs */
 #define CODEC_ID_APTX           0x01
 #define CODEC_ID_APTX_HD        0x02
+
+/** aptX capability byte bit positions */
 #define APTX_SAMP_FREQ_48000    0x08
 #define APTX_SAMP_FREQ_44100    0x10
 
@@ -35,6 +40,9 @@ extern "C" {
  * Types
  *----------------------------------------------------------------------------*/
 
+ /**
+ * @brief aptX decoder state
+ */
 typedef struct {
     bluespy_audiostream_id parent_stream_id;
     bool initialized;
@@ -54,10 +62,24 @@ typedef struct {
  * Helper Functions
  *----------------------------------------------------------------------------*/
 
+ /**
+ * @brief Read little-endian uint32 from buffer
+ */
 static inline uint32_t read_le32(const uint8_t* p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    return (uint32_t)p[0] |
+           ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
 }
 
+/**
+ * @brief Check if configuration is for aptX codec
+ *
+ * @param cap  AVDTP Media Codec capability structure
+ * @param is_hd_out true if codec is aptX HD
+ * 
+ * @return true if this is an aptX configuration
+ */
 static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, bool* is_hd_out) {
     if (cap->Media_Codec_Type != AVDTP_Codec_Vendor_Specific) {
         return false;
@@ -80,12 +102,32 @@ static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, 
     return false;
 }
 
+/**
+ * @brief Parse sample rate from aptX configuration
+ *
+ * @param config Pointer to Media_Codec_Specific_Information
+ * 
+ * @return Sample rate in Hz
+ */
 static uint32_t parse_sample_rate(uint8_t cap_byte) {
     if (cap_byte & APTX_SAMP_FREQ_48000) return 48000;
     if (cap_byte & APTX_SAMP_FREQ_44100) return 44100;
     return 48000;
 }
 
+/**
+ * @brief Convert 24-bit Little-Endian PCM to 16-bit PCM.
+ * The freeaptx library produces 24-bit audio samples (stored as 3 consecutive bytes).
+ * This function converts them to 16-bit samples by discarding the least significant 
+ * byte (truncation) and preserving the sign.
+ * 
+ * @param[in]  src          Pointer to the source buffer containing 24-bit packed samples.
+ * @param[in]  src_bytes    Total size of the source buffer in bytes.
+ * @param[out] dst          Pointer to the destination buffer for 16-bit samples.
+ * @param[in]  max_samples  The maximum number of 16-bit samples the dst buffer can hold.
+ * 
+ * @return The actual number of samples written to the destination buffer.
+ */
 static size_t convert_24bit_to_16bit(const uint8_t* src, size_t src_bytes, int16_t* dst, size_t max_samples) {
     size_t samples_written = 0;
     for (size_t i = 0; i + 2 < src_bytes && samples_written < max_samples; i += 3) {
