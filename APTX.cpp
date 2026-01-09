@@ -169,11 +169,12 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     if (!cap) {
         return ret;
     }
-
     bool is_hd;
     if (!is_aptx_config(cap, &is_hd)) {
         return ret;
     }
+
+    /* Dry run to allow the host to check if this codec format is supported */
     if (stream_id == BLUESPY_ID_INVALID) {
         ret.error = 0;
         return ret;

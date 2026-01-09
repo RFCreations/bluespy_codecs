@@ -141,21 +141,17 @@ static uint8_t popcount_bytes(const uint8_t* data, size_t len)
  */
 static uint32_t freq_code_to_hz(uint8_t code)
 {
-    static const uint32_t freq_table[] = {
-        [LC3_FREQ_8000]  = 8000,
-        [LC3_FREQ_11025] = 11025,
-        [LC3_FREQ_16000] = 16000,
-        [LC3_FREQ_22050] = 22050,
-        [LC3_FREQ_24000] = 24000,
-        [LC3_FREQ_32000] = 32000,
-        [LC3_FREQ_44100] = 44100,
-        [LC3_FREQ_48000] = 48000
-    };
-
-    if (code < sizeof(freq_table) / sizeof(freq_table[0]) && freq_table[code] != 0) {
-        return freq_table[code];
+    switch (code) {
+        case LC3_FREQ_8000:  return 8000;
+        case LC3_FREQ_11025: return 11025;
+        case LC3_FREQ_16000: return 16000;
+        case LC3_FREQ_22050: return 22050;
+        case LC3_FREQ_24000: return 24000;
+        case LC3_FREQ_32000: return 32000;
+        case LC3_FREQ_44100: return 44100;
+        case LC3_FREQ_48000: return 48000;
+        default:             return DEFAULT_SAMPLE_RATE_HZ;
     }
-    return DEFAULT_SAMPLE_RATE_HZ;
 }
 
 /**
@@ -450,13 +446,17 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
         .context_handle = 0
     };
 
-    /* Validate parameters */
+    /* Validate configuration */
     if (!info || !info->config || info->config_len == 0) {
         return ret;
     }
-
-    /* Only handle LE Audio containers */
     if (info->container != BLUESPY_CODEC_CIS && info->container != BLUESPY_CODEC_BIS) {
+        return ret;
+    }
+
+    /* Dry run to allow the host to check if this codec format is supported */
+    if (stream_id == BLUESPY_ID_INVALID) {
+        ret.error = 0;
         return ret;
     }
 

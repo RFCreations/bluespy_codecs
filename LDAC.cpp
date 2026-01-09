@@ -225,16 +225,19 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 
     /* Validate configuration */
     const AVDTP_Service_Capabilities_Media_Codec_t* cap = (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
-
     if (!cap || !is_ldac_config(cap)) {
         return ret;
     }
-
     if (info->config_len < 6) {
         ret.error = -2;
         return ret;
     }
 
+    /* Dry run to allow the host to check if this codec format is supported */
+    if (stream_id == BLUESPY_ID_INVALID) {
+        ret.error = 0;
+        return ret;
+    }
     
     /* Allocate State */
     LDAC_stream* stream = (LDAC_stream*)calloc(1, sizeof(LDAC_stream));

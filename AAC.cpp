@@ -140,14 +140,18 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 
     /* Validate configuration */
     const AVDTP_Service_Capabilities_Media_Codec_t* cap = (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
-
     if (!cap || cap->Media_Codec_Type != AVDTP_Codec_MPEG_24_AAC) {
         return ret;
     }
-
     if (info->config_len < MIN_AAC_CONFIG_LEN) { 
         ret.error = -2; 
-        return ret; 
+        return ret;
+    }
+
+    /* Dry run to allow the host to check if this codec format is supported */
+    if (stream_id == BLUESPY_ID_INVALID) {
+        ret.error = 0;
+        return ret;
     }
 
     /* Parse codec configuration */
