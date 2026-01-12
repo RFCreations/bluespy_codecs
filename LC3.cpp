@@ -509,7 +509,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
 
     ret.format.sample_rate = stream->config.sample_rate_hz;
     ret.format.n_channels = stream->config.channels;
-    ret.format.bits_per_sample = 16;
+    ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;
 

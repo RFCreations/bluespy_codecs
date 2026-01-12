@@ -7,15 +7,11 @@
 //!
 
 #ifndef BLUESPY_API
-# if defined(_WIN32) || defined(__CYGWIN__)
-#   ifdef BLUESPY_BUILD_HOST_DLL
-#     define BLUESPY_API __declspec(dllexport)
-#   else
-#     define BLUESPY_API __declspec(dllimport)
-#   endif
-# else
-#   define BLUESPY_API __attribute__((visibility("default")))
-# endif
+#if defined _WIN32 || defined __CYGWIN__
+#define BLUESPY_API __declspec(dllimport)
+#else
+#define BLUESPY_API __attribute__((visibility("default")))
+#endif
 #endif
 
 #include "stdbool.h"
@@ -106,15 +102,6 @@ BLUESPY_API void bluespy_start_gui();
  * Connect by serial number, or first found on USB if serial == -1
  */
 BLUESPY_API bluespy_error bluespy_connect(uint32_t serial);
-
-/**
- * @brief Connect to Moreph in blueQ mode
- * @param[in] serial - Serial number of the Moreph
- * @return Error code
- *
- * Connect by serial number, or first found on USB if serial == -1
- */
-BLUESPY_API bluespy_error blueQ_connect(uint32_t serial);
 
 /**
  * @brief Connect to multiple Morephs
@@ -329,92 +316,6 @@ BLUESPY_API bluespy_capture_i2s_options* bluespy_capture_i2s_options_alloc();
  * @return Error code
  */
 BLUESPY_API bluespy_error bluespy_capture(const char* filename, bluespy_capture_options* opts);
-
-typedef enum blueQ_serial_flow_control {
-    BLUEQ_SERIAL_FLOW_CONTROL_NONE,
-    BLUEQ_SERIAL_FLOW_CONTROL_SOFTWARE,
-    BLUEQ_SERIAL_FLOW_CONTROL_HARDWARE,
-} blueQ_serial_flow_control;
-
-typedef enum blueQ_serial_parity_bits {
-    BLUEQ_SERIAL_PARITY_BITS_NONE,
-    BLUEQ_SERIAL_PARITY_BITS_ODD,
-    BLUEQ_SERIAL_PARITY_BITS_EVEN,
-} blueQ_serial_parity_bits;
-
-typedef enum blueQ_serial_stop_bits {
-    BLUEQ_SERIAL_STOP_BITS_ONE,
-    BLUEQ_SERIAL_STOP_BITS_ONE_POINT_FIVE,
-    BLUEQ_SERIAL_STOP_BITS_TWO,
-} blueQ_serial_stop_bits;
-
-/**
- * @brief Connect to an IUT over a serial port
- * @param[in] port - Serial port
- * @param[in] rate - Baud-rate
- * @param[in] flow_control - Flow control: HW, SW, or none.
- * @param[in] parity_bits - Number of parity bits
- * @param[in] stop_bits - Stop-bit length.
- * @return Error code
- */
-BLUESPY_API bluespy_error blueQ_connect_IUT_serial(const char* port, uint32_t rate,
-                                                   blueQ_serial_flow_control flow_control,
-                                                   blueQ_serial_parity_bits parity_bits,
-                                                   blueQ_serial_stop_bits stop_bits);
-
-/**
- * @brief Specify configuration files for blueQ
- * @param[in] IXIT_file - Filepath to an IXIT file
- * @param[in] ICS_file - Filepath to an ICS file, not yet required
- * @param[in] options - Further options for blueQ, not yet used.
- * @return Error code
- */
-BLUESPY_API bluespy_error blueQ_set_config(const char* IXIT_file, const char* ICS_file,
-                                           const void* options);
-
-typedef enum blueQ_testcase_verdict {
-    BLUEQ_VERDICT_PASSED,
-    BLUEQ_VERDICT_FAILED,
-    BLUEQ_VERDICT_INCONCLUSIVE,
-    BLUEQ_VERDICT_INTERNAL_BLUEQ_ERROR,
-    BLUEQ_VERDICT_INITIAL_CONDITION_NOT_ESTABLISHED,
-    BLUEQ_VERDICT_TESTCASE_IS_INVALID,
-} blueQ_testcase_verdict;
-
-/**
- * @brief Get message for testcase verdict
- * @param[in] verdict
- * @return Internal pointer to null terminated string (do not free)
- */
-BLUESPY_API const char* blueQ_testcase_verdict_string(blueQ_testcase_verdict verdict);
-
-typedef struct blueQ_result_data {
-    int64_t start_ts;
-    int64_t end_ts;
-    bluespy_error error;
-    blueQ_testcase_verdict verdict;
-} blueQ_result_data;
-
-typedef enum blueQ_verbosity {
-    BLUEQ_VERBOSITY_NONE = 0,
-    BLUEQ_VERBOSITY_TESTCASES = 0x10,
-    BLUEQ_VERBOSITY_DETAILS = 0x20,
-} blueQ_verbosity;
-
-/**
- * @brief Get message for verbosity
- * @param[in] verdict
- * @return Internal pointer to null terminated string (do not free)
- */
-BLUESPY_API const char* blueQ_verbosity_string(blueQ_verbosity verbosity);
-
-/**
- * @brief Run a single blueQ testcase. NB: Blocks until test completes or fails
- * @param[in] TCID - Testcase ID, in format from specification. E.g. "LL/CS/CEN/BI-01-C"
- * @param[in] print_progress - Enable printing of test-step progress to stdout
- * @return Results, with bluespy_error if test failed to run, or blueQ_testcase_verdict otherwise
- */
-BLUESPY_API blueQ_result_data blueQ_run_test(const char* TCID, blueQ_verbosity print_verbosity);
 
 /**
  * @brief Stop a capture
@@ -1036,23 +937,30 @@ typedef struct bluespy_audio_codec_info {
 } bluespy_audio_codec_info;
 
 /**
+ * @brief Enum describing the data type of decoded audio samples.
+ */
+typedef enum bluespy_audio_sample_format {
+    /** 16-bit Signed Integer, Little Endian (Standard PCM) */
+    BLUESPY_AUDIO_FORMAT_S16_LE = 0,
+} bluespy_audio_sample_format;
+
+/**
  * @brief Describes the decoded audio format produced by a codec.
  * 
  * Each codec must report its decoded sample format as part of its 
  * initialisation return structure.
- *
- * @note Currently, only 16-bit signed integer PCM (little-endian) is supported.
- * The bits_per_sample field must be set to 16. Future API versions may 
- * support additional formats (24-bit, 32-bit float, etc.).
  */
 typedef struct bluespy_audio_codec_decoded_format {
     uint32_t sample_rate; // <- Sample rate in Hz
     uint8_t n_channels; // Number of audio channels (1=mono, 2=stereo)
-    uint8_t bits_per_sample;
+    
+    /* Format of the PCM samples. Currently only S16_LE (signed 16-bit, little endian) is supported. */
+    bluespy_audio_sample_format sample_format;
 } bluespy_audio_codec_decoded_format;
 
 /**
- * @brief Host callback for delivering decoded PCM audio.
+ * @brief Function for delivering decoded PCM audio. Should only be called from inside
+ *        the codec_decode function.
  * 
  * @param pcm_data         Pointer to decoded PCM data (S16 LE interleaved).
  * @param pcm_data_len     Number of bytes at @p pcm_data.
@@ -1129,9 +1037,7 @@ typedef struct bluespy_audio_codec_init_ret {
     bluespy_audio_codec_funcs fns;
     /**
      * @brief Opaque handle to the plugin-allocated state.
-     * * On success, the plugin must set this to a pointer (cast to uintptr_t)
-     * representing the instance state (e.g., `(uintptr_t)state_struct_ptr`).
-     * The host will pass this value back to decode() and deinit().
+     *        The host will pass this value back to decode() and deinit().
      */
     uintptr_t context_handle;
 } bluespy_audio_codec_init_ret;
@@ -1155,10 +1061,8 @@ typedef struct bluespy_audio_codec_init_ret {
  *     const bluespy_audio_codec_info* info);
  * @endcode
  * 
- * @param stream_id Unique identifier for the new stream. //TODO not sure if we actually need this
- *                  NOTE: This is provided primarily for logging or correlation
- *                  with host-side objects. The codec is NOT required to use this
- *                  for state lookups, as it should return a context_handle instead.
+ * @param stream_id Gives an ID that can be passed to query functions, if information about
+ *                  the stream is required that's not included in the codec info.
  * @param info Pointer to container-specific configuration data. The
  *             memory is valid only during this call; codecs must copy
  *             anything they need.
@@ -1187,23 +1091,6 @@ T* allocate(Args&&... args) {
 
 inline bluespy_error connect(uint32_t serial = -1) { return bluespy_connect(serial); }
 } // namespace bluespy
-
-namespace blueQ {
-inline bluespy_error connect(uint32_t serial = -1) { return blueQ_connect(serial); }
-
-inline bluespy_error
-connect_IUT_serial(const char* port, uint32_t rate = 115200,
-                   blueQ_serial_flow_control flow_control = BLUEQ_SERIAL_FLOW_CONTROL_NONE,
-                   blueQ_serial_parity_bits parity_bits = BLUEQ_SERIAL_PARITY_BITS_NONE,
-                   blueQ_serial_stop_bits stop_bits = BLUEQ_SERIAL_STOP_BITS_ONE) {
-    return blueQ_connect_IUT_serial(port, rate, flow_control, parity_bits, stop_bits);
-}
-
-inline bluespy_error set_config(const char* IXIT_file, const char* ICS_file = nullptr,
-                                const void* options = nullptr) {
-    return blueQ_set_config(IXIT_file, ICS_file, options);
-}
-} // namespace blueQ
 
 #endif
 
