@@ -10,7 +10,7 @@
 #include "codec_structures.h"
 
 extern "C" {
-    #include "freeaptx.h"
+#include "freeaptx.h"
 }
 
 #include <stdbool.h>
@@ -22,25 +22,25 @@ extern "C" {
  * Constants
  *----------------------------------------------------------------------------*/
 
-#define PCM_BUFFER_SAMPLES      8192    /* Max 16-bit samples per decode */
-#define RAW_BUFFER_BYTES        (PCM_BUFFER_SAMPLES * 3)  /* 24-bit input */
+#define PCM_BUFFER_SAMPLES 8192                   /* Max 16-bit samples per decode */
+#define RAW_BUFFER_BYTES (PCM_BUFFER_SAMPLES * 3) /* 24-bit input */
 
 /** Qualcomm Vendor ID (little-endian: 0x4F000000) */
-#define VENDOR_ID_QUALCOMM      0x0000004F
+#define VENDOR_ID_QUALCOMM 0x0000004F
 
 /** Qualcomm aptX Codec IDs */
-#define CODEC_ID_APTX           0x01
-#define CODEC_ID_APTX_HD        0x02
+#define CODEC_ID_APTX 0x01
+#define CODEC_ID_APTX_HD 0x02
 
 /** aptX capability byte bit positions */
-#define APTX_SAMP_FREQ_48000    0x08
-#define APTX_SAMP_FREQ_44100    0x10
+#define APTX_SAMP_FREQ_48000 0x08
+#define APTX_SAMP_FREQ_44100 0x10
 
 /*------------------------------------------------------------------------------
  * Types
  *----------------------------------------------------------------------------*/
 
- /**
+/**
  * @brief aptX decoder state
  */
 typedef struct {
@@ -51,7 +51,7 @@ typedef struct {
     bool is_hd;
 
     uint32_t sample_rate;
-    uint8_t  channels;
+    uint8_t channels;
     uint32_t total_frames;
 
     uint8_t raw_buffer[RAW_BUFFER_BYTES];
@@ -62,14 +62,11 @@ typedef struct {
  * Helper Functions
  *----------------------------------------------------------------------------*/
 
- /**
+/**
  * @brief Read little-endian uint32 from buffer
  */
 static inline uint32_t read_le32(const uint8_t* p) {
-    return (uint32_t)p[0] |
-           ((uint32_t)p[1] << 8) |
-           ((uint32_t)p[2] << 16) |
-           ((uint32_t)p[3] << 24);
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
 /**
@@ -77,7 +74,7 @@ static inline uint32_t read_le32(const uint8_t* p) {
  *
  * @param cap  AVDTP Media Codec capability structure
  * @param is_hd_out true if codec is aptX HD
- * 
+ *
  * @return true if this is an aptX configuration
  */
 static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, bool* is_hd_out) {
@@ -91,12 +88,12 @@ static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, 
     if (vendor_id != VENDOR_ID_QUALCOMM) {
         return false;
     }
-    if (codec_id == CODEC_ID_APTX) { 
-        *is_hd_out = false; 
+    if (codec_id == CODEC_ID_APTX) {
+        *is_hd_out = false;
         return true;
     }
     if (codec_id == CODEC_ID_APTX_HD) {
-        *is_hd_out = true; 
+        *is_hd_out = true;
         return true;
     }
     return false;
@@ -106,29 +103,32 @@ static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, 
  * @brief Parse sample rate from aptX configuration
  *
  * @param config Pointer to Media_Codec_Specific_Information
- * 
+ *
  * @return Sample rate in Hz
  */
 static uint32_t parse_sample_rate(uint8_t cap_byte) {
-    if (cap_byte & APTX_SAMP_FREQ_48000) return 48000;
-    if (cap_byte & APTX_SAMP_FREQ_44100) return 44100;
+    if (cap_byte & APTX_SAMP_FREQ_48000)
+        return 48000;
+    if (cap_byte & APTX_SAMP_FREQ_44100)
+        return 44100;
     return 48000;
 }
 
 /**
  * @brief Convert 24-bit Little-Endian PCM to 16-bit PCM.
  * The freeaptx library produces 24-bit audio samples (stored as 3 consecutive bytes).
- * This function converts them to 16-bit samples by discarding the least significant 
+ * This function converts them to 16-bit samples by discarding the least significant
  * byte (truncation) and preserving the sign.
- * 
+ *
  * @param[in]  src          Pointer to the source buffer containing 24-bit packed samples.
  * @param[in]  src_bytes    Total size of the source buffer in bytes.
  * @param[out] dst          Pointer to the destination buffer for 16-bit samples.
  * @param[in]  max_samples  The maximum number of 16-bit samples the dst buffer can hold.
- * 
+ *
  * @return The actual number of samples written to the destination buffer.
  */
-static size_t convert_24bit_to_16bit(const uint8_t* src, size_t src_bytes, int16_t* dst, size_t max_samples) {
+static size_t convert_24bit_to_16bit(const uint8_t* src, size_t src_bytes, int16_t* dst,
+                                     size_t max_samples) {
     size_t samples_written = 0;
     for (size_t i = 0; i + 2 < src_bytes && samples_written < max_samples; i += 3) {
         int32_t sample = (int32_t)src[i] | ((int32_t)src[i + 1] << 8) | ((int32_t)src[i + 2] << 16);
@@ -147,25 +147,21 @@ static size_t convert_24bit_to_16bit(const uint8_t* src, size_t src_bytes, int16
 extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
-    return bluespy_audio_codec_lib_info{ 
-        .api_version = BLUESPY_AUDIO_API_VERSION, 
-        .codec_name = "aptX" 
-    };
+    return bluespy_audio_codec_lib_info{.api_version = BLUESPY_AUDIO_API_VERSION,
+                                        .codec_name = "aptX"};
 }
 
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info) {
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret
+new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info) {
     bluespy_audio_codec_init_ret ret = {
-        .error = -1,
-        .format = {0},
-        .fns = {0},
-        .context_handle = 0
-    };
-    
+        .error = -1, .format = {0}, .fns = {0}, .context_handle = 0};
+
     /* Validate Config */
     if (!info || info->container != BLUESPY_CODEC_AVDTP) {
         return ret;
     }
-    const AVDTP_Service_Capabilities_Media_Codec_t* cap = (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
+    const AVDTP_Service_Capabilities_Media_Codec_t* cap =
+        (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
     if (!cap) {
         return ret;
     }
@@ -217,7 +213,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number) {
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len,
+                                    bluespy_event_id event_id, uint64_t sequence_number) {
     (void)sequence_number;
 
     aptX_stream* stream = (aptX_stream*)context;
@@ -228,17 +225,13 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
         return;
     }
 
-    const uint32_t missing_samples = 0; // NOTE this plugin assumes RAW aptX frames (no RTP headers) so gap detection is disabled (missing_samples = 0)
+    const uint32_t missing_samples = 0; // NOTE this plugin assumes RAW aptX frames (no RTP headers)
+                                        // so gap detection is disabled (missing_samples = 0)
 
     /* Decode (Directly on payload, no header stripping) */
     size_t raw_bytes_written = 0;
-    size_t bytes_consumed = aptx_decode(
-        stream->decoder,
-        payload,
-        payload_len,
-        stream->raw_buffer,
-        sizeof(stream->raw_buffer),
-        &raw_bytes_written);
+    size_t bytes_consumed = aptx_decode(stream->decoder, payload, payload_len, stream->raw_buffer,
+                                        sizeof(stream->raw_buffer), &raw_bytes_written);
 
     (void)bytes_consumed;
 
@@ -247,14 +240,15 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
     }
 
     /* Convert and Deliver */
-    size_t samples = convert_24bit_to_16bit(stream->raw_buffer, raw_bytes_written, stream->pcm_buffer, PCM_BUFFER_SAMPLES);
+    size_t samples = convert_24bit_to_16bit(stream->raw_buffer, raw_bytes_written,
+                                            stream->pcm_buffer, PCM_BUFFER_SAMPLES);
 
     if (samples > 0) {
         uint32_t pcm_bytes = (uint32_t)(samples * sizeof(int16_t));
-        
+
         // Pass 0 for missing_samples
         bluespy_add_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id, missing_samples);
-        
+
         stream->total_frames += (uint32_t)(samples / stream->channels);
     }
 }

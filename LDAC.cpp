@@ -23,30 +23,30 @@
  * Constants
  *----------------------------------------------------------------------------*/
 
-#define PCM_BUFFER_SAMPLES      8192    /* Max 16-bit samples per decode cycle */
-#define RTP_HEADER_SIZE         12      /* Fixed RTP header size (excludes CSRC) */
-#define MIN_PAYLOAD_SIZE        20      /* Minimum valid LDAC packet size */
+#define PCM_BUFFER_SAMPLES 8192 /* Max 16-bit samples per decode cycle */
+#define RTP_HEADER_SIZE 12      /* Fixed RTP header size (excludes CSRC) */
+#define MIN_PAYLOAD_SIZE 20     /* Minimum valid LDAC packet size */
 
 /** Sony Vendor ID (little-endian) */
-#define VENDOR_ID_SONY          0x0000012D
+#define VENDOR_ID_SONY 0x0000012D
 
 /** LDAC Codec ID */
-#define CODEC_ID_LDAC           0xAA
+#define CODEC_ID_LDAC 0xAA
 
 /** LDAC sync byte */
-#define LDAC_SYNC_BYTE          0xAA
+#define LDAC_SYNC_BYTE 0xAA
 
 /** LDAC sample rate bits (in config byte 0, bits 5-0) */
-#define LDAC_FREQ_96000         0x20
-#define LDAC_FREQ_88200         0x10
-#define LDAC_FREQ_48000         0x08
-#define LDAC_FREQ_44100         0x04
+#define LDAC_FREQ_96000 0x20
+#define LDAC_FREQ_88200 0x10
+#define LDAC_FREQ_48000 0x08
+#define LDAC_FREQ_44100 0x04
 
 /** LDAC channel mode (in config byte 0, bits 7-6) */
 typedef enum {
-    LDAC_CH_MODE_STEREO     = 0,    /* Stereo */
-    LDAC_CH_MODE_DUAL       = 1,    /* Dual channel */
-    LDAC_CH_MODE_MONO       = 2     /* Mono */
+    LDAC_CH_MODE_STEREO = 0, /* Stereo */
+    LDAC_CH_MODE_DUAL = 1,   /* Dual channel */
+    LDAC_CH_MODE_MONO = 2    /* Mono */
 } LDAC_channel_mode;
 
 /*------------------------------------------------------------------------------
@@ -72,7 +72,7 @@ typedef struct {
 
     /* Stream configuration (may be updated during decode) */
     uint32_t sample_rate;
-    uint8_t  channels;
+    uint8_t channels;
 
     /* Output buffer */
     int16_t pcm_buffer[PCM_BUFFER_SAMPLES];
@@ -85,12 +85,8 @@ typedef struct {
 /**
  * @brief Read little-endian uint32 from buffer
  */
-static inline uint32_t read_le32(const uint8_t* p)
-{
-    return (uint32_t)p[0] |
-           ((uint32_t)p[1] << 8) |
-           ((uint32_t)p[2] << 16) |
-           ((uint32_t)p[3] << 24);
+static inline uint32_t read_le32(const uint8_t* p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
 /**
@@ -99,8 +95,7 @@ static inline uint32_t read_le32(const uint8_t* p)
  * @param cap  AVDTP Media Codec capability structure
  * @return true if this is an LDAC configuration
  */
-static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap)
-{
+static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap) {
     if (cap->Media_Codec_Type != AVDTP_Codec_Vendor_Specific) {
         return false;
     }
@@ -118,14 +113,17 @@ static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap)
  * @param config  Pointer to Media_Codec_Specific_Information
  * @return Sample rate in Hz
  */
-static uint32_t parse_sample_rate(const uint8_t* config)
-{
+static uint32_t parse_sample_rate(const uint8_t* config) {
     uint8_t freq_bits = config[0] & 0x3F;
 
-    if (freq_bits & LDAC_FREQ_96000) return 96000;
-    if (freq_bits & LDAC_FREQ_88200) return 88200;
-    if (freq_bits & LDAC_FREQ_48000) return 48000;
-    if (freq_bits & LDAC_FREQ_44100) return 44100;
+    if (freq_bits & LDAC_FREQ_96000)
+        return 96000;
+    if (freq_bits & LDAC_FREQ_88200)
+        return 88200;
+    if (freq_bits & LDAC_FREQ_48000)
+        return 48000;
+    if (freq_bits & LDAC_FREQ_44100)
+        return 44100;
 
     /* Default to 48kHz */
     return 48000;
@@ -137,17 +135,16 @@ static uint32_t parse_sample_rate(const uint8_t* config)
  * @param config  Pointer to Media_Codec_Specific_Information
  * @return Number of channels (1 or 2)
  */
-static uint8_t parse_channels(const uint8_t* config)
-{
+static uint8_t parse_channels(const uint8_t* config) {
     uint8_t ch_mode = (config[0] >> 6) & 0x03;
 
     switch (ch_mode) {
-        case LDAC_CH_MODE_MONO:
-            return 1;
-        case LDAC_CH_MODE_STEREO:
-        case LDAC_CH_MODE_DUAL:
-        default:
-            return 2;
+    case LDAC_CH_MODE_MONO:
+        return 1;
+    case LDAC_CH_MODE_STEREO:
+    case LDAC_CH_MODE_DUAL:
+    default:
+        return 2;
     }
 }
 
@@ -162,8 +159,7 @@ static uint8_t parse_channels(const uint8_t* config)
  * @param payload_len Total payload length
  * @return Header length in bytes, or 0 if invalid
  */
-static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_len)
-{
+static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_len) {
     if (payload_len < RTP_HEADER_SIZE) {
         return 0;
     }
@@ -185,8 +181,7 @@ static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_l
  * @param length    Length of buffer
  * @return Offset to sync byte, or length if not found
  */
-static uint32_t find_sync_byte(const uint8_t* data, uint32_t length)
-{
+static uint32_t find_sync_byte(const uint8_t* data, uint32_t length) {
     for (uint32_t i = 0; i < length; ++i) {
         if (data[i] == LDAC_SYNC_BYTE) {
             return i;
@@ -201,22 +196,15 @@ static uint32_t find_sync_byte(const uint8_t* data, uint32_t length)
 
 extern "C" {
 
-BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void)
-{
-    return bluespy_audio_codec_lib_info{
-        .api_version = BLUESPY_AUDIO_API_VERSION,
-        .codec_name = "LDAC"
-    };
+BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
+    return bluespy_audio_codec_lib_info{.api_version = BLUESPY_AUDIO_API_VERSION,
+                                        .codec_name = "LDAC"};
 }
 
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info)
-{
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret
+new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info) {
     bluespy_audio_codec_init_ret ret = {
-        .error = -1,
-        .format = {0},
-        .fns = {0},
-        .context_handle = 0
-    };
+        .error = -1, .format = {0}, .fns = {0}, .context_handle = 0};
 
     /* Only handle AVDTP container */
     if (!info || info->container != BLUESPY_CODEC_AVDTP) {
@@ -224,7 +212,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     }
 
     /* Validate configuration */
-    const AVDTP_Service_Capabilities_Media_Codec_t* cap = (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
+    const AVDTP_Service_Capabilities_Media_Codec_t* cap =
+        (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
     if (!cap || !is_ldac_config(cap)) {
         return ret;
     }
@@ -238,7 +227,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
         ret.error = 0;
         return ret;
     }
-    
+
     /* Allocate State */
     LDAC_stream* stream = (LDAC_stream*)calloc(1, sizeof(LDAC_stream));
     if (!stream) {
@@ -277,8 +266,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number)
-{
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len,
+                                    bluespy_event_id event_id, uint64_t sequence_number) {
     (void)sequence_number;
 
     LDAC_stream* stream = (LDAC_stream*)context;
@@ -338,16 +327,14 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
 
     while (remaining > 0 && total_samples < max_samples) {
         int bytes_consumed = 0;
-        int result = ldacDecode(&stream->decoder, 
-                                (uint8_t*)frame, 
-                                pcm_out + total_samples, 
-                                &bytes_consumed);
+        int result =
+            ldacDecode(&stream->decoder, (uint8_t*)frame, pcm_out + total_samples, &bytes_consumed);
 
         if (result < 0) {
             /* Decode error - attempt to resync */
             uint32_t resync_offset = find_sync_byte(frame + 1, remaining - 1);
             if (resync_offset >= remaining - 1) {
-                break;  /* No more sync bytes found */
+                break; /* No more sync bytes found */
             }
             frame += 1 + resync_offset;
             remaining -= 1 + resync_offset;
@@ -375,7 +362,7 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
 
     if (total_samples > 0) {
         stream->samples_per_packet = (uint32_t)total_samples / stream->channels;
-        
+
         /* Update stream parameters from decoder (may change during stream) */
         stream->sample_rate = ldacdecGetSampleRate(&stream->decoder);
         stream->channels = (uint8_t)ldacdecGetChannelCount(&stream->decoder);
@@ -388,8 +375,7 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
     }
 }
 
-BLUESPY_CODEC_API void codec_deinit(uintptr_t context)
-{
+BLUESPY_CODEC_API void codec_deinit(uintptr_t context) {
     LDAC_stream* stream = (LDAC_stream*)context;
     if (stream) {
         free(stream);

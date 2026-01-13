@@ -19,15 +19,17 @@
  * Constants
  *----------------------------------------------------------------------------*/
 
-#define PCM_BUFFER_SAMPLES  16384 /* Max samples per decode cycle */
-#define RTP_HEADER_SIZE     12 /* Fixed RTP header size (excludes CSRC) */
-#define MIN_AAC_CONFIG_LEN  6 /* Minimum config length: Service_Category(1) + LOSC(1) + Media_Type(1) + Codec_Type(1) + Info(2+) */
+#define PCM_BUFFER_SAMPLES 16384 /* Max samples per decode cycle */
+#define RTP_HEADER_SIZE 12       /* Fixed RTP header size (excludes CSRC) */
+#define MIN_AAC_CONFIG_LEN                                                                         \
+    6 /* Minimum config length: Service_Category(1) + LOSC(1) + Media_Type(1) + Codec_Type(1) +    \
+         Info(2+) */
 
 /*------------------------------------------------------------------------------
  * Types
  *----------------------------------------------------------------------------*/
 
- /**
+/**
  * @brief AAC decoder state
  */
 typedef struct {
@@ -37,15 +39,15 @@ typedef struct {
     /* RTP Sequence Tracking */
     bool has_last_seq;
     uint16_t last_rtp_seq;
-    
+
     /* Gap Calculation Helpers */
     int frames_per_packet;
     uint32_t samples_per_frame;
 
     HANDLE_AACDECODER decoder;
     uint32_t sample_rate;
-    uint8_t  channels;
-    
+    uint8_t channels;
+
     /* Decoded PCM Buffer */
     int16_t pcm_buffer[PCM_BUFFER_SAMPLES];
 } AAC_stream;
@@ -68,20 +70,32 @@ static uint32_t parse_sample_rate(const uint8_t* cfg) {
     uint8_t byte2 = cfg[2];
 
     /* Byte 1: bits 7-0 map to 8000-44100 Hz */
-    if (byte1 & 0x80) return 8000;
-    if (byte1 & 0x40) return 11025;
-    if (byte1 & 0x20) return 12000;
-    if (byte1 & 0x10) return 16000;
-    if (byte1 & 0x08) return 22050;
-    if (byte1 & 0x04) return 24000;
-    if (byte1 & 0x02) return 32000;
-    if (byte1 & 0x01) return 44100;
+    if (byte1 & 0x80)
+        return 8000;
+    if (byte1 & 0x40)
+        return 11025;
+    if (byte1 & 0x20)
+        return 12000;
+    if (byte1 & 0x10)
+        return 16000;
+    if (byte1 & 0x08)
+        return 22050;
+    if (byte1 & 0x04)
+        return 24000;
+    if (byte1 & 0x02)
+        return 32000;
+    if (byte1 & 0x01)
+        return 44100;
 
     /* Byte 2: bits 7-4 map to 48000-96000 Hz */
-    if (byte2 & 0x80) return 48000;
-    if (byte2 & 0x40) return 64000;
-    if (byte2 & 0x20) return 88200;
-    if (byte2 & 0x10) return 96000;
+    if (byte2 & 0x80)
+        return 48000;
+    if (byte2 & 0x40)
+        return 64000;
+    if (byte2 & 0x20)
+        return 88200;
+    if (byte2 & 0x10)
+        return 96000;
 
     return 0;
 }
@@ -92,9 +106,7 @@ static uint32_t parse_sample_rate(const uint8_t* cfg) {
  * @param cfg Pointer to Media_Codec_Specific_Information
  * @return Number of channels (1 or 2)
  */
-static uint8_t parse_channels(const uint8_t* cfg) {
-    return (cfg[2] & 0x08) ? 1 : 2; 
-}
+static uint8_t parse_channels(const uint8_t* cfg) { return (cfg[2] & 0x08) ? 1 : 2; }
 
 /**
  * @brief Calculate RTP header length including CSRC fields
@@ -109,7 +121,7 @@ static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_l
     }
     uint32_t csrc_count = payload[0] & 0x0F;
     uint32_t header_len = RTP_HEADER_SIZE + (4 * csrc_count);
-    
+
     return (header_len >= payload_len) ? 0 : header_len;
 }
 
@@ -120,31 +132,27 @@ static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_l
 extern "C" {
 
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
-    return bluespy_audio_codec_lib_info{
-        .api_version = BLUESPY_AUDIO_API_VERSION,
-        .codec_name = "AAC"
-    };
+    return bluespy_audio_codec_lib_info{.api_version = BLUESPY_AUDIO_API_VERSION,
+                                        .codec_name = "AAC"};
 }
 
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info) {
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret
+new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info) {
     bluespy_audio_codec_init_ret ret = {
-        .error = -1,
-        .format = {0},
-        .fns = {0},
-        .context_handle = 0
-    };
+        .error = -1, .format = {0}, .fns = {0}, .context_handle = 0};
 
     if (!info || info->container != BLUESPY_CODEC_AVDTP) {
         return ret;
     }
 
     /* Validate configuration */
-    const AVDTP_Service_Capabilities_Media_Codec_t* cap = (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
+    const AVDTP_Service_Capabilities_Media_Codec_t* cap =
+        (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
     if (!cap || cap->Media_Codec_Type != AVDTP_Codec_MPEG_24_AAC) {
         return ret;
     }
-    if (info->config_len < MIN_AAC_CONFIG_LEN) { 
-        ret.error = -2; 
+    if (info->config_len < MIN_AAC_CONFIG_LEN) {
+        ret.error = -2;
         return ret;
     }
 
@@ -157,7 +165,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     /* Parse codec configuration */
     const uint8_t* codec_info = cap->Media_Codec_Specific_Information;
     uint32_t sample_rate = parse_sample_rate(codec_info);
-    if (sample_rate == 0) {  
+    if (sample_rate == 0) {
         ret.error = -4;
         return ret;
     }
@@ -173,9 +181,9 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     /* Create FDK-AAC decoder */
     stream->parent_stream_id = stream_id;
     stream->decoder = aacDecoder_Open(TT_MP4_LATM_MCP1, 1);
-    if (!stream->decoder) { 
-        free(stream); 
-        ret.error = -5; 
+    if (!stream->decoder) {
+        free(stream);
+        ret.error = -5;
         return ret;
     }
 
@@ -188,7 +196,7 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     stream->initialized = true;
     stream->has_last_seq = false;
     stream->last_rtp_seq = 0;
-    stream->frames_per_packet = 1; // Default to 1, updated dynamically
+    stream->frames_per_packet = 1;    // Default to 1, updated dynamically
     stream->samples_per_frame = 1024; // Standard AAC frame size, updated on decode
 
     /* Success */
@@ -204,7 +212,8 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
     return ret;
 }
 
-BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len, bluespy_event_id event_id, uint64_t sequence_number) {
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len,
+                                    bluespy_event_id event_id, uint64_t sequence_number) {
     AAC_stream* stream = (AAC_stream*)context;
 
     if (!stream || !stream->initialized || !stream->decoder) {
@@ -220,12 +229,11 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
 
     if (stream->has_last_seq) {
         int32_t diff = (int32_t)rtp_seq - (int32_t)stream->last_rtp_seq;
-        
-        /* Handle uint16 rollover */ 
+
+        /* Handle uint16 rollover */
         if (diff < -32768) {
             diff += 65536;
-        }
-        else if (diff > 32768) {
+        } else if (diff > 32768) {
             diff -= 65536;
         }
 
@@ -235,7 +243,8 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
 
         // /* -------------------------------------------------------------
         //  * Packet Loss Concealment (PLC) Not used by default.
-        //  *    If we missed a packet, we ask FDK-AAC to conceal X frames. Output the result immediately to the host to fill the timeline.
+        //  *    If we missed a packet, we ask FDK-AAC to conceal X frames. Output the result
+        //  immediately to the host to fill the timeline.
         //  * ------------------------------------------------------------- */
         // if (diff > 1) {
         //     uint32_t missing_packets = (uint32_t)(diff - 1);
@@ -246,13 +255,15 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
         //     uint32_t frames_to_conceal = missing_packets * stream->frames_per_packet;
 
         //     for (uint32_t i = 0; i < frames_to_conceal; i++) {
-        //         AAC_DECODER_ERROR err = aacDecoder_DecodeFrame(stream->decoder, stream->pcm_buffer, PCM_BUFFER_SAMPLES, AACDEC_CONCEAL);
-                
+        //         AAC_DECODER_ERROR err = aacDecoder_DecodeFrame(stream->decoder,
+        //         stream->pcm_buffer, PCM_BUFFER_SAMPLES, AACDEC_CONCEAL);
+
         //         if (err == AAC_DEC_OK) {
         //             CStreamInfo* frame_info = aacDecoder_GetStreamInfo(stream->decoder);
         //             if (frame_info) {
-        //                 uint32_t pcm_bytes = frame_info->frameSize * frame_info->numChannels * sizeof(int16_t);
-        //                 bluespy_add_continuous_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id);
+        //                 uint32_t pcm_bytes = frame_info->frameSize * frame_info->numChannels *
+        //                 sizeof(int16_t); bluespy_add_continuous_audio((const
+        //                 uint8_t*)stream->pcm_buffer, pcm_bytes, event_id);
         //             }
         //         }
         //     }
@@ -263,7 +274,8 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
          * ------------------------------------------------------------- */
         if (diff > 1) {
             uint32_t missing_packets = (uint32_t)(diff - 1);
-            missing_samples = missing_packets * stream->frames_per_packet * stream->samples_per_frame;
+            missing_samples =
+                missing_packets * stream->frames_per_packet * stream->samples_per_frame;
         }
     }
 
@@ -288,14 +300,16 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
         UINT bytes_valid = aac_data_len;
         const UCHAR* in_ptr = aac_data;
 
-        AAC_DECODER_ERROR err = aacDecoder_Fill(stream->decoder, (UCHAR**)&in_ptr, &aac_data_len, &bytes_valid);
+        AAC_DECODER_ERROR err =
+            aacDecoder_Fill(stream->decoder, (UCHAR**)&in_ptr, &aac_data_len, &bytes_valid);
         if (err != AAC_DEC_OK) {
             break;
         }
 
-        err = aacDecoder_DecodeFrame(stream->decoder, stream->pcm_buffer + total_samples, PCM_BUFFER_SAMPLES - total_samples, 0);
-        
-        /* Handle fragmentation */ 
+        err = aacDecoder_DecodeFrame(stream->decoder, stream->pcm_buffer + total_samples,
+                                     PCM_BUFFER_SAMPLES - total_samples, 0);
+
+        /* Handle fragmentation */
         if (err == AAC_DEC_NOT_ENOUGH_BITS) {
             break;
         }
@@ -310,17 +324,18 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
 
             stream->samples_per_frame = frame_info->frameSize;
         }
-        
+
         aac_data_len = bytes_valid;
     }
 
-    /* Update heuristic for concealment */ 
+    /* Update heuristic for concealment */
     if (frames_in_this_packet > 0) {
         stream->frames_per_packet = frames_in_this_packet;
     }
 
     if (total_samples > 0) {
-        bluespy_add_audio((const uint8_t*)stream->pcm_buffer, total_samples * sizeof(int16_t), event_id, missing_samples);
+        bluespy_add_audio((const uint8_t*)stream->pcm_buffer, total_samples * sizeof(int16_t),
+                          event_id, missing_samples);
     } else if (missing_samples > 0) {
         bluespy_add_audio(NULL, 0, event_id, missing_samples);
     }

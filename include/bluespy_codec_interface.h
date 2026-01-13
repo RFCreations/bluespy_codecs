@@ -4,8 +4,8 @@
 #ifndef BLUESPY_CODEC_INTERFACE_H
 #define BLUESPY_CODEC_INTERFACE_H
 
-#include "stdint.h"
 #include "bluespy.h"
+#include "stdint.h"
 
 #ifndef BLUESPY_CODEC_DLL_IMPORT
 #if defined _WIN32 || defined __CYGWIN__
@@ -37,9 +37,9 @@ extern "C" {
  *
  * Called once immediately after the shared library is loaded.
  * The implementation must populate the returned structure with its
- * API version (must equal BLUESPY_AUDIO_API_VERSION) and a 
+ * API version (must equal BLUESPY_AUDIO_API_VERSION) and a
  * human-readable codec name.
- * 
+ *
  * Example:
  * @code
  * BLUESPY_CODEC_API bluespy_audio_codec_lib_info init() {
@@ -49,37 +49,38 @@ extern "C" {
  *     };
  * }
  * @endcode
- * 
+ *
  * @return codec library information.
  */
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void);
 
 /**
  * @brief Create and configure a new codec instance for a detected stream.
- * 
+ *
  * The host calls this function when an audio stream has been discovered and requires decoding.
- * 
+ *
  * @param stream_id Unique identifier for reference/logging.
  * @param info Pointer to codec configuration.
- * 
- * @return 
- *  - On success: structure with error == 0 and valid function pointers. 
+ *
+ * @return
+ *  - On success: structure with error == 0 and valid function pointers.
  *  - On failure: structure with error < 0; no resources must remain allocated.
  */
-BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info);
-
+BLUESPY_CODEC_API bluespy_audio_codec_init_ret
+new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info);
 
 /**
- * @brief Decode on codec frame or sequence from the capture. 
- * 
+ * @brief Decode on codec frame or sequence from the capture.
+ *
  * @param[in] context Opaque handle to the codec instance state.
  * @param[in] payload Pointer to encoded bytes.
  * @param[in] payload_len Length in bytes of @p payload.
  * @param[out] event_id Capture event identifier corresponding to this SDU.
- * @param sequence_number 64-bit monotonically increasing sequence counter for this SDU, assigned by the host.
- * 
+ * @param sequence_number 64-bit monotonically increasing sequence counter for this SDU, assigned by
+ * the host.
+ *
  * @note
- *   - **Classic (AVDTP/A2DP):**  
+ *   - **Classic (AVDTP/A2DP):**
  *     Each call represents one L2CAP SDU = one AVDTP Media Packet, usually
  *     containing an RTP header (12 + 4xCSRC bytes) followed by one or more
  *     codec frames.
@@ -89,18 +90,16 @@ BLUESPY_CODEC_API bluespy_audio_codec_init_ret new_codec_stream(bluespy_audiostr
  *     frames or a partial frame. The decoder must handle reconstruction.
  */
 
-BLUESPY_CODEC_API void codec_decode(uintptr_t context, 
-                                    const uint8_t* payload,
-                                    const uint32_t payload_len,
-                                    bluespy_event_id event_id,
+BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload,
+                                    const uint32_t payload_len, bluespy_event_id event_id,
                                     uint64_t sequence_number);
-    
+
 /**
  * @brief De-initialise and release all state for a codec stream.
- * 
+ *
  * Implementations must cast @p context back to their internal state pointer,
  * free any dynamic allocations, and close decoder handles.
- * 
+ *
  * @param[in] context Opaque handle to the codec instance state.
  */
 BLUESPY_CODEC_API void codec_deinit(uintptr_t context);

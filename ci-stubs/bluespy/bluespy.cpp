@@ -6,13 +6,13 @@
 #include "bluespy.h"
 
 #ifdef _WIN32
-  #ifdef BLUESPY_BUILD_DLL
-    #define BLUESPY_API __declspec(dllexport)
-  #else
-    #define BLUESPY_API __declspec(dllimport)
-  #endif
+#ifdef BLUESPY_BUILD_DLL
+#define BLUESPY_API __declspec(dllexport)
 #else
-  #define BLUESPY_API __attribute__((visibility("default")))
+#define BLUESPY_API __declspec(dllimport)
+#endif
+#else
+#define BLUESPY_API __attribute__((visibility("default")))
 #endif
 
 extern "C" {
