@@ -32,9 +32,11 @@ extern "C" {
 #define CODEC_ID_APTX 0x01
 #define CODEC_ID_APTX_HD 0x02
 
-/** aptX capability byte bit positions */
-#define APTX_SAMP_FREQ_48000 0x08
-#define APTX_SAMP_FREQ_44100 0x10
+/* * Standard aptX Sample Rate Values (Upper Nibble of Byte 6 of Media_Codec_Specific_Information) */
+#define APTX_FREQ_VAL_48000 0x1
+#define APTX_FREQ_VAL_44100 0x2
+#define APTX_FREQ_VAL_32000 0x4
+#define APTX_FREQ_VAL_16000 0x8
 
 /*------------------------------------------------------------------------------
  * Types
@@ -101,17 +103,36 @@ static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, 
 
 /**
  * @brief Parse sample rate from aptX configuration
+ * - On Little Endian systems, Byte 6 contains:
+ * - Lower 4 bits: Channel Mode
+ * - Upper 4 bits: Sampling Frequency
  *
- * @param config Pointer to Media_Codec_Specific_Information
+ * @param info   Pointer to the start of Media_Codec_Specific_Information
+ * @param len    Length of the info block
  *
  * @return Sample rate in Hz
  */
-static uint32_t parse_sample_rate(uint8_t cap_byte) {
-    if (cap_byte & APTX_SAMP_FREQ_48000)
-        return 48000;
-    if (cap_byte & APTX_SAMP_FREQ_44100)
+static uint32_t parse_sample_rate(const uint8_t* info, uint32_t len) {
+    if (len < 7) {
         return 44100;
-    return 48000;
+    }
+
+    uint8_t freq_nibble = (info[6] >> 4) & 0x0F;
+
+    if (freq_nibble & APTX_FREQ_VAL_44100) {
+        return 44100;
+    }
+    if (freq_nibble & APTX_FREQ_VAL_48000) {
+        return 48000;
+    }
+    if (freq_nibble & APTX_FREQ_VAL_32000) {
+        return 32000;
+    }
+    if (freq_nibble & APTX_FREQ_VAL_16000) {
+        return 16000;
+    }
+
+    return 44100;
 }
 
 /**
@@ -190,7 +211,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     /* Init Decoder */
     stream->is_hd = is_hd;
-    stream->sample_rate = parse_sample_rate(cap->Media_Codec_Specific_Information[5]);
+    stream->sample_rate = parse_sample_rate(cap->Media_Codec_Specific_Information, info->config_len);
     stream->channels = 2;
     stream->decoder = aptx_init(is_hd);
     if (!stream->decoder) {

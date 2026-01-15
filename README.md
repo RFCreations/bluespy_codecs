@@ -28,7 +28,7 @@ fdk-aac-stripped, and recompile the AAC binary. No other source changes are requ
 0. Ensure you have CMake and a suitable compiler/toolchain installed (MSVC/LLVM/GCC).
 1. Open a terminal (on Windows you may need to use the Visual Studio developer prompt).
 2. Run: `git clone --recurse-submodules https://github.com/RFCreations/bluespy_codecs.git && cd bluespy_codecs`
-3. Add your decoder file MYCODEC.cpp. You may wish to copy the structure of one of the provided examples. There is also a template called [TEMPLATE_CODEC.cpp](TEMPLATE_CODEC.cpp) if you would like to copy that as a starting point. 
+3. Add your decoder file MYCODEC.cpp. You may wish to copy the structure of one of the provided examples. There is also a template called [TEMPLATE_CODEC.cpp](TEMPLATE_CODEC.cpp) if you would like to copy that as a starting point.
 4. Implement the four functions in [bluespy_codec_interface.h](include/bluespy_codec_interface.h) (init, new_codec_stream, codec_deinit, and codec_decode). See also [codec_structures.h](include/codec_structures.h) for definitions of the data structures provided by blueSPY for use in codecs plugins.
 5. Add a new secion at the bottom of CMakeLists.txt for MYCODEC, using the provided ones as examples. Also add any submodules into .gitmodules.
 6. Run: `cmake --preset release && cmake --build build/release`
@@ -40,16 +40,15 @@ Please consider releasing your custom codec back to RFCreations so we can includ
 We can accept pull requests via GitHub, or private source or binary versions sent to RFCreations support.
 
 ## Directories that blueSPY Will Look in for Audio Codec Dynamic Libraries
+   - A directory called audio_codecs which is in the same directory as the bluespy executable. This is where you will find the AAC, aptX, and LDAC dynamic libraries included in the bluespy download.
    - Any directory whose path is the value of an environment variable on your machine called **BLUESPY_AUDIO_CODEC_DIR**.
-   - If you do not wish to set an environment variable, the default directories that blueSPY will check are as follows:
+   - Other default directories that blueSPY will check:
       - Windows User: C:/Users/\<USER\>/AppData/Roaming/RFcreations/blueSPY/audio_codecs/
       - Windows System: C:/Program Files/RFcreations/blueSPY/audio_codecs/
-      - Mac User: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
-      - Mac System: /Applications/blueSPY.app/Contents/Frameworks/audio_codecs/
-      - Linux User: ~/.local/share/RFcreations/blueSPY/audio_codecs/
-      - Linux System: \<INSTALLATION_DIRECTORY\>/audio_codecs/
+      - Mac: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
+      - Linux: \<INSTALLATION_DIRECTORY\>/audio_codecs/
 
-## Licensing 
+## Licensing
 
 All code in this repository, excluding the submodules, is released under the Boost Software License which imposes
 practically no requirements on your use of the code. However, the underlying codecs have their own licenses which can
