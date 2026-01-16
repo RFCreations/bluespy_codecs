@@ -1,12 +1,12 @@
 [submodule "libfreeaptx"]
 	path = libfreeaptx
-	url = https://github.com/iamthehorker/libfreeaptx
+	url = https://github.com/RFCreations/libfreeaptx
 [submodule "fdk-aac-stripped"]
 	path = fdk-aac-stripped
 	url = https://github.com/RFCreations/fdk-aac-stripped.git
 [submodule "libldacdec"]
 	path = libldacdec
-	url = https://github.com/hegdi/libldacdec.git
+	url = https://github.com/RFCreations/libldacdec.git
 [submodule "liblc3"]
 	path = liblc3
 	url = https://github.com/google/liblc3.git

@@ -7,15 +7,11 @@
 //!
 
 #ifndef BLUESPY_API
-# if defined(_WIN32) || defined(__CYGWIN__)
-#   ifdef BLUESPY_BUILD_HOST_DLL
-#     define BLUESPY_API __declspec(dllexport)
-#   else
-#     define BLUESPY_API __declspec(dllimport)
-#   endif
-# else
-#   define BLUESPY_API __attribute__((visibility("default")))
-# endif
+#if defined _WIN32 || defined __CYGWIN__
+#define BLUESPY_API __declspec(dllimport)
+#else
+#define BLUESPY_API __attribute__((visibility("default")))
+#endif
 #endif
 
 #include "stdbool.h"
@@ -106,15 +102,6 @@ BLUESPY_API void bluespy_start_gui();
  * Connect by serial number, or first found on USB if serial == -1
  */
 BLUESPY_API bluespy_error bluespy_connect(uint32_t serial);
-
-/**
- * @brief Connect to Moreph in blueQ mode
- * @param[in] serial - Serial number of the Moreph
- * @return Error code
- *
- * Connect by serial number, or first found on USB if serial == -1
- */
-BLUESPY_API bluespy_error blueQ_connect(uint32_t serial);
 
 /**
  * @brief Connect to multiple Morephs
@@ -329,92 +316,6 @@ BLUESPY_API bluespy_capture_i2s_options* bluespy_capture_i2s_options_alloc();
  * @return Error code
  */
 BLUESPY_API bluespy_error bluespy_capture(const char* filename, bluespy_capture_options* opts);
-
-typedef enum blueQ_serial_flow_control {
-    BLUEQ_SERIAL_FLOW_CONTROL_NONE,
-    BLUEQ_SERIAL_FLOW_CONTROL_SOFTWARE,
-    BLUEQ_SERIAL_FLOW_CONTROL_HARDWARE,
-} blueQ_serial_flow_control;
-
-typedef enum blueQ_serial_parity_bits {
-    BLUEQ_SERIAL_PARITY_BITS_NONE,
-    BLUEQ_SERIAL_PARITY_BITS_ODD,
-    BLUEQ_SERIAL_PARITY_BITS_EVEN,
-} blueQ_serial_parity_bits;
-
-typedef enum blueQ_serial_stop_bits {
-    BLUEQ_SERIAL_STOP_BITS_ONE,
-    BLUEQ_SERIAL_STOP_BITS_ONE_POINT_FIVE,
-    BLUEQ_SERIAL_STOP_BITS_TWO,
-} blueQ_serial_stop_bits;
-
-/**
- * @brief Connect to an IUT over a serial port
- * @param[in] port - Serial port
- * @param[in] rate - Baud-rate
- * @param[in] flow_control - Flow control: HW, SW, or none.
- * @param[in] parity_bits - Number of parity bits
- * @param[in] stop_bits - Stop-bit length.
- * @return Error code
- */
-BLUESPY_API bluespy_error blueQ_connect_IUT_serial(const char* port, uint32_t rate,
-                                                   blueQ_serial_flow_control flow_control,
-                                                   blueQ_serial_parity_bits parity_bits,
-                                                   blueQ_serial_stop_bits stop_bits);
-
-/**
- * @brief Specify configuration files for blueQ
- * @param[in] IXIT_file - Filepath to an IXIT file
- * @param[in] ICS_file - Filepath to an ICS file, not yet required
- * @param[in] options - Further options for blueQ, not yet used.
- * @return Error code
- */
-BLUESPY_API bluespy_error blueQ_set_config(const char* IXIT_file, const char* ICS_file,
-                                           const void* options);
-
-typedef enum blueQ_testcase_verdict {
-    BLUEQ_VERDICT_PASSED,
-    BLUEQ_VERDICT_FAILED,
-    BLUEQ_VERDICT_INCONCLUSIVE,
-    BLUEQ_VERDICT_INTERNAL_BLUEQ_ERROR,
-    BLUEQ_VERDICT_INITIAL_CONDITION_NOT_ESTABLISHED,
-    BLUEQ_VERDICT_TESTCASE_IS_INVALID,
-} blueQ_testcase_verdict;
-
-/**
- * @brief Get message for testcase verdict
- * @param[in] verdict
- * @return Internal pointer to null terminated string (do not free)
- */
-BLUESPY_API const char* blueQ_testcase_verdict_string(blueQ_testcase_verdict verdict);
-
-typedef struct blueQ_result_data {
-    int64_t start_ts;
-    int64_t end_ts;
-    bluespy_error error;
-    blueQ_testcase_verdict verdict;
-} blueQ_result_data;
-
-typedef enum blueQ_verbosity {
-    BLUEQ_VERBOSITY_NONE = 0,
-    BLUEQ_VERBOSITY_TESTCASES = 0x10,
-    BLUEQ_VERBOSITY_DETAILS = 0x20,
-} blueQ_verbosity;
-
-/**
- * @brief Get message for verbosity
- * @param[in] verdict
- * @return Internal pointer to null terminated string (do not free)
- */
-BLUESPY_API const char* blueQ_verbosity_string(blueQ_verbosity verbosity);
-
-/**
- * @brief Run a single blueQ testcase. NB: Blocks until test completes or fails
- * @param[in] TCID - Testcase ID, in format from specification. E.g. "LL/CS/CEN/BI-01-C"
- * @param[in] print_progress - Enable printing of test-step progress to stdout
- * @return Results, with bluespy_error if test failed to run, or blueQ_testcase_verdict otherwise
- */
-BLUESPY_API blueQ_result_data blueQ_run_test(const char* TCID, blueQ_verbosity print_verbosity);
 
 /**
  * @brief Stop a capture
@@ -964,41 +865,41 @@ BLUESPY_API bluespy_error bluespy_free_keys(bluespy_key* keys, size_t count);
 
 /**
  * @brief Defines the API version for blueSPY Audio Codec Interface.
- * 
- * Codec shared libraries must set bluespy_audio_codec_lib_info::api_version to this 
- * value when returning from their init() function. This allows the host to verify 
+ *
+ * Codec shared libraries must set bluespy_audio_codec_lib_info::api_version to this
+ * value when returning from their init() function. This allows the host to verify
  * compatibility between itself and the loaded codec library.
- * 
+ *
  * API version history:
  * - Version 1: Initial release (supports AVDTP/A2DP, CIS, and BIS containers)
  */
 #define BLUESPY_AUDIO_API_VERSION 1
 
 /**
- * @brief Library-level information describing a codec implementation. 
- * 
+ * @brief Library-level information describing a codec implementation.
+ *
  * Each codec shared library (e.g. AAC, aptX) must expose an 'init()' function returning
  * an instance of this structure. It identifies the codec library at runtime and provides
  * a library version for compatibility checking.
  */
 typedef struct bluespy_audio_codec_lib_info {
-    int api_version; // <- Must be set to BLUESPY_AUDIO_API_VERSION
+    int api_version;        // <- Must be set to BLUESPY_AUDIO_API_VERSION
     const char* codec_name; // <- Human-readable codec name (e.g., "AAC", "aptX", "LDAC")
 } bluespy_audio_codec_lib_info;
 
 /**
  * @brief Signature of the codec library initialisation function.
- * 
+ *
  * Each codec library must export a C-linkage symbol named 'init()' matching this signature.
  * It provides information about the library and its capabilities.
- * 
+ *
  * @return A structure containing the codec libray information.
  */
 typedef bluespy_audio_codec_lib_info (*bluespy_audio_codec_lib_init_t)(void);
 
 /**
  * @brief Enumeration of transport/container types used to deliver codec data.
- * 
+ *
  * This is used to differentiate between Classic (AVDTP/A2DP) and LE Audio (LEA) transports.
  */
 typedef enum bluespy_codec_container {
@@ -1020,8 +921,8 @@ typedef enum bluespy_codec_container {
  * - **BLUESPY_CODEC_CIS**: @ref config points to the Codec_Specific_Configuration
  *   part of the ASE Control Point (typically from a Set Configuration command).
  *
- * - **BLUESPY_CODEC_BIS**: @ref config points to the ACAD + AdvData fields of 
- *   the Extended Advertising PDU payload. ACAD (Additional Controller Advertising Data) 
+ * - **BLUESPY_CODEC_BIS**: @ref config points to the ACAD + AdvData fields of
+ *   the Extended Advertising PDU payload. ACAD (Additional Controller Advertising Data)
  *   includes the BIG Info block. AdvData (Advertising Data) includes the BASE block.
  *
  * In all cases, @ref config_len bytes are valid.
@@ -1031,112 +932,88 @@ typedef enum bluespy_codec_container {
  */
 typedef struct bluespy_audio_codec_info {
     bluespy_codec_container container;
-    const void* config;     // <- pointer to container-specific data block
-    uint32_t config_len;    // <- length of container-specific block
+    const void* config;  // <- pointer to container-specific data block
+    uint32_t config_len; // <- length of container-specific block
 } bluespy_audio_codec_info;
 
 /**
+ * @brief Enum describing the data type of decoded audio samples.
+ */
+typedef enum bluespy_audio_sample_format {
+    /** 16-bit Signed Integer, Little Endian (Standard PCM) */
+    BLUESPY_AUDIO_FORMAT_S16_LE = 0,
+} bluespy_audio_sample_format;
+
+/**
  * @brief Describes the decoded audio format produced by a codec.
- * 
- * Each codec must report its decoded sample format as part of its 
- * initialisation return structure.
  *
- * @note Currently, only 16-bit signed integer PCM (little-endian) is supported.
- * The bits_per_sample field must be set to 16. Future API versions may 
- * support additional formats (24-bit, 32-bit float, etc.).
+ * Each codec must report its decoded sample format as part of its
+ * initialisation return structure.
  */
 typedef struct bluespy_audio_codec_decoded_format {
     uint32_t sample_rate; // <- Sample rate in Hz
-    uint8_t n_channels; // Number of audio channels (1=mono, 2=stereo)
-    uint8_t bits_per_sample;
+    uint8_t n_channels;   // Number of audio channels (1=mono, 2=stereo)
+
+    /* Format of the PCM samples. Currently only S16_LE (signed 16-bit, little endian) is supported.
+     */
+    bluespy_audio_sample_format sample_format;
 } bluespy_audio_codec_decoded_format;
 
 /**
- * @brief Host callback for delivering decoded PCM audio from a codec plugin.
+ * @brief Function for delivering decoded PCM audio. Should only be called from inside
+ *        the codec_decode function.
  *
- * A codec's @ref bluespy_audio_decode_t implementation must call this function
- * whenever it has decoded PCM samples available for the stream currently being
- * processed.  Multiple calls per SDU are permitted.
- *
- * @param pcm_data      Pointer to decoded PCM data (S16 LE interleaved).
- * @param pcm_data_len  Number of bytes at @p pcm_data.
- * @param source_id     Identifier for the source SDU / packet, used by the host
- *                      to correlate decoded audio with captured packets.
- *
- * @note
- * - The host owns the destination storage; the codec must keep its buffer valid
- *   only until the next @ref decode() call for the same stream.
- * - This function must be invoked only from within a codec's @ref decode()
- *   implementation.
+ * @param pcm_data         Pointer to decoded PCM data (S16 LE interleaved).
+ * @param pcm_data_len     Number of bytes at @p pcm_data.
+ * @param source_id        Identifier for the source SDU / packet, used by the host
+ *                         to correlate decoded audio with captured packets. Usually
+ *                         passed from codec_decode.
+ * @param missing_samples  Number of samples (per channel) lost immediately before this packet.
+ *                         Pass 0 if continuous or unknown.
  */
-BLUESPY_API void bluespy_add_decoded_audio(const uint8_t* pcm_data,
-                                                 uint32_t pcm_data_len,
-                                                 bluespy_event_id source_id);
-
-/**
- * @brief Host callback for delivering decoded PCM from continuous stream codecs.
- * 
- * Use this instead of @ref bluespy_add_decoded_audio when the codec is 
- * continuous (e.g., aptX, SBC) and RTP timestamps should be ignored in favor 
- * of gapless playback.
- * 
- * @param pcm_data      Pointer to decoded PCM data (S16 LE interleaved).
- * @param pcm_data_len  Number of bytes at @p pcm_data.
- * @param source_id     Identifier for the source SDU / packet, used by the host
- *                      to correlate decoded audio with captured packets.
- */
-BLUESPY_API void bluespy_add_continuous_audio(const uint8_t* pcm_data,
-                                              uint32_t pcm_data_len,
-                                              bluespy_event_id source_id);                                                 
+BLUESPY_API void bluespy_add_audio(const uint8_t* pcm_data, uint32_t pcm_data_len,
+                                   bluespy_event_id source_id, uint32_t missing_samples);
 
 /**
  * @brief Function pointer type for the codec_decode function.
- * 
+ *
  * Called once per encoded packet or frame to produce decoded PCM audio data.
- * The implementation must call @ref bluespy_add_decoded_audio() zero or more
- * times to deliver decoded samples to the host; the function itself returns void.
- * 
- * @param stream_id Identifier for the active audio stream. Multiple concurrent streams may exist,
- *           so codecs must maintain separate state per stream ID.
+ *
+ * @param context Opaque handle to the codec instance state. This is the
+ *                value returned in @ref bluespy_audio_codec_init_ret::context_handle
+ *                during initialization.
  * @param payload Pointer to the encoded audio packet or frame.
- * 
+ *
  * **For Classic (A2DP/AVDTP):** This buffer represents the contents of a single
  *   L2CAP Service Data Unit (SDU) carrying an AVDTP media packet. This typically contains:
  * - RTP header (12 bytes + 4 bytes per CSRC)
  * - Optional codec-specific headers (e.g., LDAC sync byte 0xAA)
  * - One or more codec frames
- * 
+ *
  * **For LE Audio (CIS/BIS):**
  * Payload is one reconstructed ISOAL SDU.
- * 
+ *
  * @param payload_len Length of the encoded data in bytes.
- * @param event_id Capture event identifier for this SDU or packet; used by the
- *                 host for packet-to-audio correlation in visualization.
- * @param sequence_number 64-bit monotonic sequence assigned by the host for
- *                        ordering; optional for decoder state tracking.
+ * @param event_id Capture event identifier for this SDU.
+ * @param sequence_number 64-bit monotonic sequence assigned by the host.
  */
-typedef void (*bluespy_audio_decode_t)(bluespy_audiostream_id stream_id, 
-                                       const uint8_t* payload,
-                                       const uint32_t payload_len,
-                                       bluespy_event_id event_id,
+typedef void (*bluespy_audio_decode_t)(uintptr_t context, const uint8_t* payload,
+                                       const uint32_t payload_len, bluespy_event_id event_id,
                                        uint64_t sequence_number);
 
 /**
  * @brief Function-pointer type for the codec de-initialisation function.
  *
  * Called when an audio stream ends so the codec can release state and resources.
- * After this call, the given stream ID will not be used again for this instance.
  *
- * @param stream_id Identifier of the audio stream being deinitialised.
- *
- * @note Must be re-entrant and tolerate redundant calls for a stream that is
- *       already de-initialised (should simply no-op).
+ * @param context Opaque handle to the codec instance state to be freed.
+ *               This pointer should be cast back to the internal state struct and freed.
  */
-typedef void (*bluespy_audio_codec_deinit_t)(bluespy_audiostream_id stream_id);
+typedef void (*bluespy_audio_codec_deinit_t)(uintptr_t context);
 
 /**
  * @brief Collection of function pointers exposed by a codec implementation.
- * 
+ *
  * Each successfully initialised codec must provide at least a
  * @ref decode and a @ref deinit function. Both pointers must be non-NULL.
  */
@@ -1147,7 +1024,7 @@ typedef struct bluespy_audio_codec_funcs {
 
 /**
  * @brief Return structure for the stream initialisation function.
- * 
+ *
  * Returned by @ref new_codec_stream() to provide the negotiated PCM
  * output format, function table, and any error information.
  */
@@ -1155,18 +1032,23 @@ typedef struct bluespy_audio_codec_init_ret {
     int error; // <- 0 = success; < 0 = failure.
     bluespy_audio_codec_decoded_format format;
     bluespy_audio_codec_funcs fns;
+    /**
+     * @brief Opaque handle to the plugin-allocated state.
+     *        The host will pass this value back to decode() and deinit().
+     */
+    uintptr_t context_handle;
 } bluespy_audio_codec_init_ret;
 
 /**
  * @brief Function pointer type for a codec's stream creation routine.
- * 
+ *
  * The host calls this when an audio stream is detected and needs decoding.
  *
  * The codec should:
  * 1. Verify that it supports the provided configuration.
  * 2. Allocate and initialise decoder state for the stream.
  * 3. Return the output format and function pointers.
- * 
+ *
  * Each codec must export a C-linkage symbol named `new_codec_stream`
  * matching this signature:
  * @code
@@ -1175,11 +1057,9 @@ typedef struct bluespy_audio_codec_init_ret {
  *     bluespy_audiostream_id stream_id,
  *     const bluespy_audio_codec_info* info);
  * @endcode
- * 
- * @param stream_id   Unique identifier for the new stream.  The codec must use
- *             this to manage state for concurrent streams; the same ID
- *             will be provided to all future @ref decode() and
- *             @ref deinit() calls for that stream.
+ *
+ * @param stream_id Gives an ID that can be passed to query functions, if information about
+ *                  the stream is required that's not included in the codec info.
  * @param info Pointer to container-specific configuration data. The
  *             memory is valid only during this call; codecs must copy
  *             anything they need.
@@ -1193,7 +1073,8 @@ typedef struct bluespy_audio_codec_init_ret {
  * @note Codecs that do not recognise or support the configuration should
  *       return `error = -1` to allow fallback to alternative decoders.
  */
-typedef bluespy_audio_codec_init_ret (*bluespy_audio_codec_init_t)(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info);
+typedef bluespy_audio_codec_init_ret (*bluespy_audio_codec_init_t)(
+    bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info);
 
 #ifdef __cplusplus
 }
@@ -1208,23 +1089,6 @@ T* allocate(Args&&... args) {
 
 inline bluespy_error connect(uint32_t serial = -1) { return bluespy_connect(serial); }
 } // namespace bluespy
-
-namespace blueQ {
-inline bluespy_error connect(uint32_t serial = -1) { return blueQ_connect(serial); }
-
-inline bluespy_error
-connect_IUT_serial(const char* port, uint32_t rate = 115200,
-                   blueQ_serial_flow_control flow_control = BLUEQ_SERIAL_FLOW_CONTROL_NONE,
-                   blueQ_serial_parity_bits parity_bits = BLUEQ_SERIAL_PARITY_BITS_NONE,
-                   blueQ_serial_stop_bits stop_bits = BLUEQ_SERIAL_STOP_BITS_ONE) {
-    return blueQ_connect_IUT_serial(port, rate, flow_control, parity_bits, stop_bits);
-}
-
-inline bluespy_error set_config(const char* IXIT_file, const char* ICS_file = nullptr,
-                                const void* options = nullptr) {
-    return blueQ_set_config(IXIT_file, ICS_file, options);
-}
-} // namespace blueQ
 
 #endif
 
