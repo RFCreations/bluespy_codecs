@@ -1,9 +1,6 @@
 # blueSPY Audio Codecs
 
-> [!WARNING]
-> This repository is unreleased, experimental and subject to change.
-
-The blueSPY protocol analyser software from RFCreations ([download here](https://www.rfcreations.com/bluespy-software)) includes in-built decoders for the SBC, CSVD, G.722, and LC3 codecs.
+The blueSPY protocol analyser software from RFCreations ([download here](https://www.rfcreations.com/bluespy-software)) includes in-built decoders for the SBC, CVSD, G.722, and LC3 codecs.
 
 This repository serves two purposes:
 

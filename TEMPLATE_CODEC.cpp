@@ -46,7 +46,7 @@
  * codec-specific decoder handles, context state, or buffers here.
  */
 typedef struct {
-    bluespy_audiostream_id stream_id;
+    bluespy_audiostream_id parent_stream_id;
     bool initialized;
 
     /* Example configuration */

@@ -214,6 +214,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     stream->sample_rate = parse_sample_rate(cap->Media_Codec_Specific_Information, info->config_len);
     stream->channels = 2;
     stream->decoder = aptx_init(is_hd);
+    stream->parent_stream_id = stream_id;
     if (!stream->decoder) {
         free(stream);
         ret.error = -3;
