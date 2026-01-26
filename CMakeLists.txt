@@ -106,6 +106,8 @@ if(BUILD_AAC)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
     
     add_library(aac SHARED AAC.cpp)
+    set(FDK_AAC_INSTALL_CMAKE_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
+    set(FDK_AAC_INSTALL_PKGCONFIG_MODULE OFF CACHE BOOL "" FORCE)
     add_subdirectory(fdk-aac-stripped EXCLUDE_FROM_ALL)
     target_link_libraries(aac PRIVATE 
         fdk-aac 
