@@ -37,7 +37,7 @@ Please consider releasing your custom codec back to RFCreations so we can includ
 We can accept pull requests via GitHub, or private source or binary versions sent to RFCreations support.
 
 ## Directories that blueSPY Will Look in for Audio Codec Dynamic Libraries
-   - A directory called audio_codecs which is in the same directory as the bluespy executable (or on MacOS, .../blueSPY.app/Contents/Resources/audio_codecs). This is where you will find the AAC, aptX, and LDAC dynamic libraries included in the bluespy download.
+   - A directory called audio_codecs which is in the same directory as the bluespy executable (or on MacOS, .../blueSPY.app/Contents/Plugins/audio_codecs). This is where you will find the AAC, aptX, and LDAC dynamic libraries included in the bluespy download.
    - Any directory whose path is the value of an environment variable on your machine called **BLUESPY_AUDIO_CODEC_DIR**.
    - Other default directories that blueSPY will check:
       - Windows User: C:/Users/\<USER\>/AppData/Roaming/RFcreations/blueSPY/audio_codecs/
