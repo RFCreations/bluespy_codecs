@@ -12,15 +12,15 @@ This repository serves two purposes:
 
 As explained above, plugins for decoding AAC Low Complexity ([aac-stripped](https://github.com/RFCreations/fdk-aac-stripped/tree/529b87452cd33d45e1d0a5066d20b64f10b38845)), aptX and aptX HD ([libfreeaptx](https://github.com/RFCreations/libfreeaptx/tree/c176b7de9c2017d0fc1877659cea3bb6c330aafa)), and LDAC ([libldac](https://github.com/RFCreations/libldacdec/tree/35bed54275a66197d05b505b3e1b7c514529cac2)) are included when you download the blueSPY software, so decoding streams in blueSPY that use these codecs will work out of the box. 
 
-If you wish to install the dynamic libraries in a location other than the default, they can be downloaded [here](https://github.com/RFCreations/bluespy_codecs/actions). Click on the latest workflow run, scroll down to **Artifacts** and download the libraries for your OS of choice. Then move the files to an appropriate directory - listed [below](#directories-that-bluespy-will-look-in-for-audio-codec-dynamic-libraries) are the locations that blueSPY will look for audio codec plugins in Windows, MacOS, and Linux environments.
+If you wish to install the dynamic libraries in a location other than the default, they can be downloaded [here](https://github.com/RFCreations/bluespy_codecs/actions). Click on the latest workflow run that is tagged `main`, scroll down to **Artifacts** and download the libraries for your OS of choice. Then move the files to an appropriate directory - listed [below](#directories-that-bluespy-will-look-in-for-audio-codec-dynamic-libraries) are the locations that blueSPY will look for audio codec plugins in Windows, MacOS, and Linux environments.
 
-### AAC Higher Quality Modes
+### AAC higher quality modes
 
 The AAC codec plugin included in the blueSPY download is a cut down version with all patented technology removed. If you wish to use higher quality modes like
 HE or ELD then you can fork this repository, clone https://github.com/mstorsjo/fdk-aac, adjust CMakeLists.txt to use that instead of
 fdk-aac-stripped, and recompile the AAC binary. No other source changes are required.
 
-## Adding New and/or Custom Codecs
+## Adding new and/or custom codecs
 
 0. Ensure you have CMake and a suitable compiler/toolchain installed (MSVC/LLVM/GCC).
 1. Open a terminal (on Windows you may need to use the Visual Studio developer prompt).
@@ -36,13 +36,14 @@ Contact [RFCreations support](https://www.rfcreations.com/contact-us) if you req
 Please consider releasing your custom codec back to RFCreations so we can include it for all of our mutual customers.
 We can accept pull requests via GitHub, or private source or binary versions sent to RFCreations support.
 
-## Directories that blueSPY Will Look in for Audio Codec Dynamic Libraries
-   - A directory called audio_codecs which is in the same directory as the bluespy executable (or on MacOS, .../blueSPY.app/Contents/Plugins/audio_codecs). This is where you will find the AAC, aptX, and LDAC dynamic libraries included in the bluespy download.
-   - Any directory whose path is the value of an environment variable on your machine called **BLUESPY_AUDIO_CODEC_DIR**.
-   - Other default directories that blueSPY will check:
-      - Windows User: C:/Users/\<USER\>/AppData/Roaming/RFcreations/blueSPY/audio_codecs/
-      - Windows System: C:/Program Files/RFcreations/blueSPY/audio_codecs/
-      - Mac: ~/Library/Application Support/RFcreations/blueSPY/audio_codecs/
+## Directories that blueSPY will look in for audio codec dynamic libraries
+BlueSPY will look in the following directories for codec dynamic libraries, in this order of priority. BlueSPY will only load one library with a given name; any further libraries found subsequently with the same name will be logged but not loaded. To view the blueSPY logs, click the 'Help' tab and then 'View Log.' This will tell you which directories blueSPY has looked in and whether any codec libraries have been found and loaded.
+
+   - Any directory whose path is the value of an environment variable on your machine called `BLUESPY_AUDIO_CODEC_DIR`.
+   - User settings / system defaults:
+      - Windows User: `C:/Users/\<USER\>/AppData/Roaming/RFcreations/blueSPY/audio_codecs/`
+      - MacOS: `~/Library/Application Support/RFcreations/blueSPY/audio_codecs/`
+   - A directory called `audio_codecs` which is in the same directory as the bluespy executable (or on MacOS, `.../blueSPY.app/Contents/Plugins/audio_codecs`). This is where you will find the AAC, aptX, and LDAC dynamic libraries included in the blueSPY download.
 
 ## Licensing
 
