@@ -36,18 +36,18 @@
 /** LDAC sync byte */
 #define LDAC_SYNC_BYTE 0xAA
 
-/** LDAC sample rate bits (in config byte 0, bits 5-0) */
-#define LDAC_FREQ_96000 0x20
-#define LDAC_FREQ_88200 0x10
-#define LDAC_FREQ_48000 0x08
-#define LDAC_FREQ_44100 0x04
+/** LDAC sample rate bits (in config byte 6) */
+#define LDAC_FREQ_192000 0x01
+#define LDAC_FREQ_176400 0x02
+#define LDAC_FREQ_96000  0x04
+#define LDAC_FREQ_88200  0x08
+#define LDAC_FREQ_48000  0x10
+#define LDAC_FREQ_44100  0x20
 
-/** LDAC channel mode (in config byte 0, bits 7-6) */
-typedef enum {
-    LDAC_CH_MODE_STEREO = 0, /* Stereo */
-    LDAC_CH_MODE_DUAL = 1,   /* Dual channel */
-    LDAC_CH_MODE_MONO = 2    /* Mono */
-} LDAC_channel_mode;
+/** LDAC channel mode bits (in config byte 7) */
+#define LDAC_CH_MODE_STEREO 0x01
+#define LDAC_CH_MODE_DUAL   0x02
+#define LDAC_CH_MODE_MONO   0x04
 
 /*------------------------------------------------------------------------------
  * Types
@@ -114,7 +114,8 @@ static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap) 
  * @return Sample rate in Hz
  */
 static uint32_t parse_sample_rate(const uint8_t* config) {
-    uint8_t freq_bits = config[0] & 0x3F;
+    // The sampling frequency is located at offset 6
+    uint8_t freq_bits = config[6];
 
     if (freq_bits & LDAC_FREQ_96000)
         return 96000;
@@ -124,8 +125,12 @@ static uint32_t parse_sample_rate(const uint8_t* config) {
         return 48000;
     if (freq_bits & LDAC_FREQ_44100)
         return 44100;
+    if (freq_bits & LDAC_FREQ_192000)
+        return 192000;
+    if (freq_bits & LDAC_FREQ_176400)
+        return 176400;
 
-    /* Default to 48kHz */
+    /* Default to 48kHz if no bits are explicitly matched */
     return 48000;
 }
 
@@ -136,16 +141,19 @@ static uint32_t parse_sample_rate(const uint8_t* config) {
  * @return Number of channels (1 or 2)
  */
 static uint8_t parse_channels(const uint8_t* config) {
-    uint8_t ch_mode = (config[0] >> 6) & 0x03;
+    // The channel mode is located at offset 7
+    uint8_t ch_bits = config[7];
 
-    switch (ch_mode) {
-    case LDAC_CH_MODE_MONO:
-        return 1;
-    case LDAC_CH_MODE_STEREO:
-    case LDAC_CH_MODE_DUAL:
-    default:
+    // Note: Both STEREO and DUAL mean 2 channels of output for the decoder
+    if (ch_bits & LDAC_CH_MODE_STEREO)
         return 2;
-    }
+    if (ch_bits & LDAC_CH_MODE_DUAL)
+        return 2;
+    if (ch_bits & LDAC_CH_MODE_MONO)
+        return 1;
+        
+    /* Default to Stereo if no bits are explicitly matched */
+    return 2;
 }
 
 /*------------------------------------------------------------------------------
@@ -217,7 +225,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     if (!cap || !is_ldac_config(cap)) {
         return ret;
     }
-    if (info->config_len < 6) {
+    if (info->config_len < 8) {
         ret.error = -2;
         return ret;
     }
