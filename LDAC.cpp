@@ -39,15 +39,15 @@
 /** LDAC sample rate bits (in config byte 6) */
 #define LDAC_FREQ_192000 0x01
 #define LDAC_FREQ_176400 0x02
-#define LDAC_FREQ_96000  0x04
-#define LDAC_FREQ_88200  0x08
-#define LDAC_FREQ_48000  0x10
-#define LDAC_FREQ_44100  0x20
+#define LDAC_FREQ_96000 0x04
+#define LDAC_FREQ_88200 0x08
+#define LDAC_FREQ_48000 0x10
+#define LDAC_FREQ_44100 0x20
 
 /** LDAC channel mode bits (in config byte 7) */
 #define LDAC_CH_MODE_STEREO 0x01
-#define LDAC_CH_MODE_DUAL   0x02
-#define LDAC_CH_MODE_MONO   0x04
+#define LDAC_CH_MODE_DUAL 0x02
+#define LDAC_CH_MODE_MONO 0x04
 
 /*------------------------------------------------------------------------------
  * Types
@@ -63,9 +63,8 @@ typedef struct {
     /* RTP sequence tracking */
     bool has_last_seq;
     uint16_t last_rtp_seq;
-
-    /* Gap estimation heuristic */
-    uint32_t samples_per_packet;
+    uint32_t last_rtp_timestamp;
+    uint32_t last_packet_samples;
 
     /* ldacBT decoder instance */
     ldacdec_t decoder;
@@ -91,9 +90,6 @@ static inline uint32_t read_le32(const uint8_t* p) {
 
 /**
  * @brief Check if configuration is for LDAC codec
- *
- * @param cap  AVDTP Media Codec capability structure
- * @return true if this is an LDAC configuration
  */
 static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap) {
     if (cap->Media_Codec_Type != AVDTP_Codec_Vendor_Specific) {
@@ -109,14 +105,9 @@ static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap) 
 
 /**
  * @brief Parse sample rate from LDAC configuration
- *
- * @param config  Pointer to Media_Codec_Specific_Information
- * @return Sample rate in Hz
  */
 static uint32_t parse_sample_rate(const uint8_t* config) {
-    // The sampling frequency is located at offset 6
     uint8_t freq_bits = config[6];
-
     if (freq_bits & LDAC_FREQ_96000)
         return 96000;
     if (freq_bits & LDAC_FREQ_88200)
@@ -129,30 +120,20 @@ static uint32_t parse_sample_rate(const uint8_t* config) {
         return 192000;
     if (freq_bits & LDAC_FREQ_176400)
         return 176400;
-
-    /* Default to 48kHz if no bits are explicitly matched */
     return 48000;
 }
 
 /**
  * @brief Parse channel count from LDAC configuration
- *
- * @param config  Pointer to Media_Codec_Specific_Information
- * @return Number of channels (1 or 2)
  */
 static uint8_t parse_channels(const uint8_t* config) {
-    // The channel mode is located at offset 7
     uint8_t ch_bits = config[7];
-
-    // Note: Both STEREO and DUAL mean 2 channels of output for the decoder
     if (ch_bits & LDAC_CH_MODE_STEREO)
         return 2;
     if (ch_bits & LDAC_CH_MODE_DUAL)
         return 2;
     if (ch_bits & LDAC_CH_MODE_MONO)
         return 1;
-        
-    /* Default to Stereo if no bits are explicitly matched */
     return 2;
 }
 
@@ -162,10 +143,6 @@ static uint8_t parse_channels(const uint8_t* config) {
 
 /**
  * @brief Calculate RTP header length including CSRC fields
- *
- * @param payload     Pointer to RTP packet
- * @param payload_len Total payload length
- * @return Header length in bytes, or 0 if invalid
  */
 static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_len) {
     if (payload_len < RTP_HEADER_SIZE) {
@@ -184,10 +161,6 @@ static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_l
 
 /**
  * @brief Find LDAC sync byte in buffer
- *
- * @param data      Buffer to search
- * @param length    Length of buffer
- * @return Offset to sync byte, or length if not found
  */
 static uint32_t find_sync_byte(const uint8_t* data, uint32_t length) {
     for (uint32_t i = 0; i < length; ++i) {
@@ -214,14 +187,13 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     bluespy_audio_codec_init_ret ret = {
         .error = -1, .format = {0}, .fns = {0}, .context_handle = 0};
 
-    /* Only handle AVDTP container */
     if (!info || info->container != BLUESPY_CODEC_AVDTP) {
         return ret;
     }
 
-    /* Validate configuration */
     const AVDTP_Service_Capabilities_Media_Codec_t* cap =
         (const AVDTP_Service_Capabilities_Media_Codec_t*)info->config;
+
     if (!cap || !is_ldac_config(cap)) {
         return ret;
     }
@@ -230,25 +202,22 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
 
-    /* Dry run to allow the host to check if this codec format is supported */
     if (stream_id == BLUESPY_ID_INVALID) {
         ret.error = 0;
         return ret;
     }
 
-    /* Allocate State */
     LDAC_stream* stream = (LDAC_stream*)calloc(1, sizeof(LDAC_stream));
     if (!stream) {
         ret.error = -3;
         return ret;
     }
-    /* Parse configuration */
+
     const uint8_t* codec_info = cap->Media_Codec_Specific_Information;
     stream->sample_rate = parse_sample_rate(codec_info);
     stream->channels = parse_channels(codec_info);
     stream->parent_stream_id = stream_id;
 
-    /* Initialise LDAC decoder */
     memset(&stream->decoder, 0, sizeof(stream->decoder));
     if (ldacdecInit(&stream->decoder) < 0) {
         free(stream);
@@ -259,9 +228,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     stream->initialized = true;
     stream->has_last_seq = false;
     stream->last_rtp_seq = 0;
-    stream->samples_per_packet = 128 * stream->channels; // conservative initial guess
 
-    /* Success */
     ret.error = 0;
     ret.context_handle = (uintptr_t)stream;
 
@@ -276,50 +243,58 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
 BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, uint32_t payload_len,
                                     bluespy_event_id event_id, uint64_t sequence_number) {
-    (void)sequence_number;
-
     LDAC_stream* stream = (LDAC_stream*)context;
-    if (!stream || !stream->initialized) {
+
+    if (!stream || !stream->initialized || !payload || payload_len < MIN_PAYLOAD_SIZE) {
         return;
     }
 
-    if (!payload || payload_len < MIN_PAYLOAD_SIZE) {
-        return;
-    }
-
-    /* Extract RTP sequence number and calculate gap */
-    uint16_t rtp_seq = (uint16_t)(payload[2] << 8) | payload[3];
-    uint32_t missing_samples = 0;
-
-    if (stream->has_last_seq) {
-        int32_t diff = (int32_t)rtp_seq - (int32_t)stream->last_rtp_seq;
-
-        if (diff < -32768) {
-            diff += 65536;
-        } else if (diff > 32768) {
-            diff -= 65536;
-        }
-
-        if (diff > 1) {
-            // Gap detected
-            uint32_t missing_packets = (uint32_t)(diff - 1);
-            missing_samples = missing_packets * stream->samples_per_packet;
-        }
-    }
-
-    stream->last_rtp_seq = rtp_seq;
-    stream->has_last_seq = true;
-
-    /* Strip RTP header */
+    // Validate RTP header
     uint32_t rtp_len = get_rtp_header_length(payload, payload_len);
     if (rtp_len == 0) {
         return;
     }
 
+    // Extract RTP Sequence and Timestamp
+    uint16_t rtp_seq = (uint16_t)(payload[2] << 8) | payload[3];
+    uint32_t rtp_timestamp =
+        (uint32_t)(payload[4] << 24) | (payload[5] << 16) | (payload[6] << 8) | payload[7];
+    uint32_t missing_samples = 0;
+
+    // Guard for out-of-order or duplicate packets
+    bool is_forward_progress = true;
+
+    if (stream->has_last_seq) {
+        int32_t seq_diff = (int32_t)rtp_seq - (int32_t)stream->last_rtp_seq;
+
+        // Handle 16-bit wrap-around
+        if (seq_diff < -32768)
+            seq_diff += 65536;
+        else if (seq_diff > 32768)
+            seq_diff -= 65536;
+
+        if (seq_diff > 0) {
+            uint32_t expected_timestamp = stream->last_rtp_timestamp + stream->last_packet_samples;
+            int32_t time_diff = (int32_t)(rtp_timestamp - expected_timestamp);
+
+            if (time_diff > 0) {
+                missing_samples = (uint32_t)time_diff;
+            }
+        } else {
+            is_forward_progress = false;
+        }
+    }
+
+    if (is_forward_progress) {
+        stream->last_rtp_seq = rtp_seq;
+        stream->last_rtp_timestamp = rtp_timestamp;
+        stream->has_last_seq = true;
+    }
+
+    // Find LDAC sync byte
     const uint8_t* frame = payload + rtp_len;
     uint32_t remaining = payload_len - rtp_len;
 
-    /* Find first LDAC sync byte (0xAA) */
     uint32_t sync_offset = find_sync_byte(frame, remaining);
     if (sync_offset >= remaining) {
         return;
@@ -328,56 +303,60 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
     frame += sync_offset;
     remaining -= sync_offset;
 
-    /* Decode LDAC frames */
+    // Decode Loop
     int16_t* pcm_out = stream->pcm_buffer;
     size_t total_samples = 0;
+    size_t total_pcm_frames = 0;
     const size_t max_samples = PCM_BUFFER_SAMPLES;
 
-    while (remaining > 0 && total_samples < max_samples) {
+    while (remaining > 0 && (total_samples + 2048) <= max_samples) {
         int bytes_consumed = 0;
         int result =
             ldacDecode(&stream->decoder, (uint8_t*)frame, pcm_out + total_samples, &bytes_consumed);
 
         if (result < 0) {
-            /* Decode error - attempt to resync */
             uint32_t resync_offset = find_sync_byte(frame + 1, remaining - 1);
             if (resync_offset >= remaining - 1) {
-                break; /* No more sync bytes found */
+                break;
             }
             frame += 1 + resync_offset;
             remaining -= 1 + resync_offset;
             continue;
         }
 
-        if (bytes_consumed <= 0) {
-            break;
-        }
-
-        if ((uint32_t)bytes_consumed > remaining) {
+        if (bytes_consumed <= 0 || (uint32_t)bytes_consumed > remaining) {
             break;
         }
 
         frame += bytes_consumed;
         remaining -= bytes_consumed;
 
-        /* Get frame info from decoder */
         int frame_samples = stream->decoder.frame.frameSamples;
         int frame_channels = stream->decoder.frame.channelCount;
         size_t samples_decoded = (size_t)(frame_samples * frame_channels);
 
         total_samples += samples_decoded;
+        total_pcm_frames += frame_samples;
     }
 
+    // Output Handling
     if (total_samples > 0) {
-        stream->samples_per_packet = (uint32_t)total_samples / stream->channels;
+        uint32_t real_sample_rate = ldacdecGetSampleRate(&stream->decoder);
+        uint8_t real_channels = (uint8_t)ldacdecGetChannelCount(&stream->decoder);
 
-        /* Update stream parameters from decoder (may change during stream) */
-        stream->sample_rate = ldacdecGetSampleRate(&stream->decoder);
-        stream->channels = (uint8_t)ldacdecGetChannelCount(&stream->decoder);
+        if (real_sample_rate != stream->sample_rate || real_channels != stream->channels) {
+            stream->sample_rate = real_sample_rate;
+            stream->channels = real_channels;
+            bluespy_update_format(stream->sample_rate, stream->channels);
+        }
 
-        /* Deliver decoded audio */
+        if (is_forward_progress) {
+            stream->last_packet_samples = (uint32_t)total_pcm_frames;
+        }
+
         uint32_t pcm_bytes = (uint32_t)(total_samples * sizeof(int16_t));
         bluespy_add_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id, missing_samples);
+
     } else if (missing_samples > 0) {
         bluespy_add_audio(NULL, 0, event_id, missing_samples);
     }
