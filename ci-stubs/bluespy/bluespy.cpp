@@ -17,4 +17,5 @@
 
 extern "C" {
 BLUESPY_API void bluespy_add_audio(const uint8_t*, uint32_t, bluespy_event_id, uint32_t) {}
+BLUESPY_API void bluespy_update_format(uint32_t sample_rate, uint8_t channels) {}
 }

@@ -275,6 +275,10 @@ typedef struct bluespy_capture_options {
 
     bool enable_Proprietary_1;
     bool enable_Proprietary_2;
+    bool mask_payloads;
+    bool disable_HDT_dewhitening;
+    bool disable_AGC;
+    int16_t maximum_input_signal_dbm; // Only valid when AGC is disabled
 } bluespy_capture_options;
 
 /**
@@ -735,6 +739,12 @@ typedef enum bluespy_event_types {
 BLUESPY_API void bluespy_register_event_callback(bluespy_event_types types,
                                                  void (*callback)(bluespy_event_id));
 
+typedef struct bluespy_custom_query {
+    const char* query;
+    const char* pretty_name;
+    const char* description;
+} bluespy_custom_query;
+
 typedef void (*bluespy_cleanup_t)(void*);
 /**
  * @brief Allocates memory that bluespy will automatically clean up
@@ -746,11 +756,19 @@ typedef void (*bluespy_cleanup_t)(void*);
  */
 BLUESPY_API void* bluespy_allocate(size_t bytes, bluespy_cleanup_t cleanup);
 
+typedef enum bluespy_custom_event_layer {
+    bluespy_custom_event_layer_automatic, // One layer above its children
+    bluespy_custom_event_layer_logical,
+    bluespy_custom_event_layer_transaction,
+    bluespy_custom_event_layer_application,
+} bluespy_custom_event_layer;
+
 typedef struct bluespy_custom_event {
     bluespy_event_id* children;
     unsigned int n_children;
     bluespy_query_value (*query)(const struct bluespy_custom_event* self, const char* query_str,
                                  bool prefer_string);
+    bluespy_custom_event_layer layer;
 } bluespy_custom_event;
 
 /**
@@ -850,7 +868,16 @@ typedef struct bluespy_key {
 } bluespy_key;
 
 /**
- * @brief List keys from the security tab. Later, call bluespy_free_keys
+ * @brief List keys from the security tab.
+ * This functions performs allocation.
+ * Later, call bluespy_free_keys to free the memory.
+ *
+ * e.g.
+ * bluspy_key* keys;
+ * size_t count;
+ * bluespy_list_keys(&keys, &count);
+ * ...
+ * bluespy_free_keys(keys, count);
  */
 BLUESPY_API bluespy_error bluespy_list_keys(bluespy_key** keys, size_t* count);
 
@@ -872,8 +899,10 @@ BLUESPY_API bluespy_error bluespy_free_keys(bluespy_key* keys, size_t count);
  *
  * API version history:
  * - Version 1: Initial release (supports AVDTP/A2DP, CIS, and BIS containers)
+ * - Version 2: Adds bluespy_update_format to allow codecs to dynamically update their output
+ *              format.
  */
-#define BLUESPY_AUDIO_API_VERSION 1
+#define BLUESPY_AUDIO_API_VERSION 2
 
 /**
  * @brief Library-level information describing a codec implementation.
@@ -973,6 +1002,13 @@ typedef struct bluespy_audio_codec_decoded_format {
  */
 BLUESPY_API void bluespy_add_audio(const uint8_t* pcm_data, uint32_t pcm_data_len,
                                    bluespy_event_id source_id, uint32_t missing_samples);
+
+/**
+ * @brief Allows a codec to dynamically update its output format.
+ * Should be called from inside codec_decode, before bluespy_add_audio, if stream parameters differ
+ * from init. blueSPY does not support codecs changing sample rate mid-stream.
+ */
+BLUESPY_API void bluespy_update_format(uint32_t sample_rate, uint8_t channels);
 
 /**
  * @brief Function pointer type for the codec_decode function.
@@ -1075,6 +1111,77 @@ typedef struct bluespy_audio_codec_init_ret {
  */
 typedef bluespy_audio_codec_init_ret (*bluespy_audio_codec_init_t)(
     bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info);
+
+/**
+ * @brief Enable the custom decoding libraries
+ */
+BLUESPY_API bluespy_error bluespy_enable_custom_decoders();
+
+/**
+ * @brief Disable the custom decoding libraries
+ */
+BLUESPY_API bluespy_error bluespy_disable_custom_decoders();
+
+typedef struct bluespy_custom_decoder_status_t {
+    bool enabled;
+    size_t count;
+    const char** names;
+} bluespy_custom_decoder_status_t;
+
+BLUESPY_API bluespy_custom_decoder_status_t bluespy_custom_decoders_status();
+
+typedef struct bluespy_spectrum_data {
+    int8_t (*data)[79];
+    size_t count;
+    uint32_t interval; // Nanoseconds
+} bluespy_spectrum_data;
+/**
+ * @brief Get the spectrum values
+ * Set start = 0 for start of capture and end = INT64_MAX for end of capture
+ */
+BLUESPY_API bluespy_spectrum_data bluespy_get_spectrum(bluespy_time_point start,
+                                                       bluespy_time_point end);
+
+/**
+ * @brief Export logic data to a file
+ */
+BLUESPY_API bluespy_error bluespy_export_logic(const char* filename);
+
+typedef enum bluespy_audiopod_pin_current {
+    bluespy_1mA = 1,
+    bluespy_10mA = 10,
+    bluespy_100mA = 100,
+    bluespy_1A = 1000,
+} bluespy_audiopod_pin_current;
+
+/**
+ * @brief Set this based on the pins you are using.
+ *
+ * @param current The current scale of the pins you are using in mA. Should be 1, 10, 100, or 1000.
+ * The value is only used to return correctly scale mA values in bluespy_audiopod_current
+ */
+BLUESPY_API bluespy_error bluespy_set_pin_current(bluespy_audiopod_pin_current current);
+
+typedef struct bluespy_audiopod_current_data {
+    double* data; // In mA
+    size_t count;
+} bluespy_audiopod_current_data;
+/**
+ * @brief Get the Audiopod current values in mA.
+ *
+ * Set start = 0 for start of capture and end = INT64_MAX for end of capture
+ * Call bluespy_set_pin_current first to ensure the values returned by this function are correctly
+ * scaled
+ * Sampling rate is 125kHz
+ */
+BLUESPY_API bluespy_audiopod_current_data bluespy_audiopod_current(bluespy_time_point start,
+                                                                   bluespy_time_point end);
+
+/**
+ * @brief returns the blueSPY version as an integer.
+ * e.g. 260328 for 26.03.28
+ */
+BLUESPY_API uint32_t bluespy_version();
 
 #ifdef __cplusplus
 }
