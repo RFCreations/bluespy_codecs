@@ -1,4 +1,4 @@
-// Copyright RF Creations Ltd 2023
+// Copyright RF Creations Ltd 2026
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
 /**
@@ -11,6 +11,7 @@
  */
 
 #include "bluespy_codec_interface.h"
+#include "bluespy_codec_utils.h"
 #include "codec_structures.h"
 #include "ldacdec.h"
 
@@ -20,11 +21,10 @@
 #include <string.h>
 
 /*------------------------------------------------------------------------------
- * Constants
+ * Constants & Offsets
  *----------------------------------------------------------------------------*/
 
 #define PCM_BUFFER_SAMPLES 8192 /* Max 16-bit samples per decode cycle */
-#define RTP_HEADER_SIZE 12      /* Fixed RTP header size (excludes CSRC) */
 #define MIN_PAYLOAD_SIZE 20     /* Minimum valid LDAC packet size */
 
 /** Sony Vendor ID (little-endian) */
@@ -36,18 +36,24 @@
 /** LDAC sync byte */
 #define LDAC_SYNC_BYTE 0xAA
 
+/** LDAC Configuration Offsets (Media_Codec_Specific_Information) */
+#define LDAC_CONFIG_LEN_MIN 8
+#define LDAC_OFFSET_CODEC_ID 4
+#define LDAC_OFFSET_FREQ 6
+#define LDAC_OFFSET_CH_MODE 7
+
 /** LDAC sample rate bits (in config byte 6) */
 #define LDAC_FREQ_192000 0x01
 #define LDAC_FREQ_176400 0x02
-#define LDAC_FREQ_96000  0x04
-#define LDAC_FREQ_88200  0x08
-#define LDAC_FREQ_48000  0x10
-#define LDAC_FREQ_44100  0x20
+#define LDAC_FREQ_96000 0x04
+#define LDAC_FREQ_88200 0x08
+#define LDAC_FREQ_48000 0x10
+#define LDAC_FREQ_44100 0x20
 
 /** LDAC channel mode bits (in config byte 7) */
 #define LDAC_CH_MODE_STEREO 0x01
-#define LDAC_CH_MODE_DUAL   0x02
-#define LDAC_CH_MODE_MONO   0x04
+#define LDAC_CH_MODE_DUAL 0x02
+#define LDAC_CH_MODE_MONO 0x04
 
 /*------------------------------------------------------------------------------
  * Types
@@ -83,13 +89,6 @@ typedef struct {
  *----------------------------------------------------------------------------*/
 
 /**
- * @brief Read little-endian uint32 from buffer
- */
-static inline uint32_t read_le32(const uint8_t* p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-}
-
-/**
  * @brief Check if configuration is for LDAC codec
  *
  * @param cap  AVDTP Media Codec capability structure
@@ -102,7 +101,7 @@ static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap) 
 
     const uint8_t* info = cap->Media_Codec_Specific_Information;
     uint32_t vendor_id = read_le32(info);
-    uint8_t codec_id = info[4];
+    uint8_t codec_id = info[LDAC_OFFSET_CODEC_ID];
 
     return (vendor_id == VENDOR_ID_SONY && codec_id == CODEC_ID_LDAC);
 }
@@ -114,8 +113,7 @@ static bool is_ldac_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap) 
  * @return Sample rate in Hz
  */
 static uint32_t parse_sample_rate(const uint8_t* config) {
-    // The sampling frequency is located at offset 6
-    uint8_t freq_bits = config[6];
+    uint8_t freq_bits = config[LDAC_OFFSET_FREQ];
 
     if (freq_bits & LDAC_FREQ_96000)
         return 96000;
@@ -141,8 +139,7 @@ static uint32_t parse_sample_rate(const uint8_t* config) {
  * @return Number of channels (1 or 2)
  */
 static uint8_t parse_channels(const uint8_t* config) {
-    // The channel mode is located at offset 7
-    uint8_t ch_bits = config[7];
+    uint8_t ch_bits = config[LDAC_OFFSET_CH_MODE];
 
     // Note: Both STEREO and DUAL mean 2 channels of output for the decoder
     if (ch_bits & LDAC_CH_MODE_STEREO)
@@ -151,36 +148,33 @@ static uint8_t parse_channels(const uint8_t* config) {
         return 2;
     if (ch_bits & LDAC_CH_MODE_MONO)
         return 1;
-        
+
     /* Default to Stereo if no bits are explicitly matched */
     return 2;
+}
+
+/**
+ * @brief Parse the specific channel mode from LDAC configuration
+ *
+ * @param config  Pointer to Media_Codec_Specific_Information
+ * @return The generalized bluespy channel mode
+ */
+static bluespy_channel_mode parse_channel_mode(const uint8_t* config) {
+    uint8_t ch_bits = config[LDAC_OFFSET_CH_MODE];
+
+    if (ch_bits & LDAC_CH_MODE_STEREO)
+        return BLUESPY_CH_MODE_STEREO;
+    if (ch_bits & LDAC_CH_MODE_DUAL)
+        return BLUESPY_CH_MODE_DUAL_CHANNEL;
+    if (ch_bits & LDAC_CH_MODE_MONO)
+        return BLUESPY_CH_MODE_MONO;
+
+    return BLUESPY_CH_MODE_STEREO;
 }
 
 /*------------------------------------------------------------------------------
  * RTP / Frame Processing
  *----------------------------------------------------------------------------*/
-
-/**
- * @brief Calculate RTP header length including CSRC fields
- *
- * @param payload     Pointer to RTP packet
- * @param payload_len Total payload length
- * @return Header length in bytes, or 0 if invalid
- */
-static uint32_t get_rtp_header_length(const uint8_t* payload, uint32_t payload_len) {
-    if (payload_len < RTP_HEADER_SIZE) {
-        return 0;
-    }
-
-    uint32_t csrc_count = payload[0] & 0x0F;
-    uint32_t header_len = RTP_HEADER_SIZE + (4 * csrc_count);
-
-    if (header_len >= payload_len) {
-        return 0;
-    }
-
-    return header_len;
-}
 
 /**
  * @brief Find LDAC sync byte in buffer
@@ -225,14 +219,27 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     if (!cap || !is_ldac_config(cap)) {
         return ret;
     }
-    if (info->config_len < 8) {
+    if (info->config_len < LDAC_CONFIG_LEN_MIN) {
         ret.error = -2;
         return ret;
     }
 
+    /* Parse configuration */
+    const uint8_t* codec_info = cap->Media_Codec_Specific_Information;
+    uint32_t sample_rate = parse_sample_rate(codec_info);
+    if (sample_rate == 0) {
+        ret.error = -4;
+        return ret;
+    }
+    uint8_t channels = parse_channels(codec_info);
+    bluespy_channel_mode ch_mode = parse_channel_mode(codec_info);
+
     /* Dry run to allow the host to check if this codec format is supported */
     if (stream_id == BLUESPY_ID_INVALID) {
         ret.error = 0;
+        ret.format.sample_rate = sample_rate;
+        ret.format.n_channels = channels;
+        ret.format.channel_mode = ch_mode;
         return ret;
     }
 
@@ -242,10 +249,8 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         ret.error = -3;
         return ret;
     }
-    /* Parse configuration */
-    const uint8_t* codec_info = cap->Media_Codec_Specific_Information;
-    stream->sample_rate = parse_sample_rate(codec_info);
-    stream->channels = parse_channels(codec_info);
+    stream->sample_rate = sample_rate;
+    stream->channels = channels;
     stream->parent_stream_id = stream_id;
 
     /* Initialise LDAC decoder */
@@ -267,6 +272,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
+    ret.format.channel_mode = ch_mode;
     ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;
@@ -287,18 +293,17 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
         return;
     }
 
+    uint32_t rtp_len = get_rtp_header_length(payload, payload_len);
+    if (rtp_len == 0) {
+        return;
+    }
+
     /* Extract RTP sequence number and calculate gap */
-    uint16_t rtp_seq = (uint16_t)(payload[2] << 8) | payload[3];
+    uint16_t rtp_seq = read_be16(payload + RTP_SEQ_OFFSET);
     uint32_t missing_samples = 0;
 
     if (stream->has_last_seq) {
-        int32_t diff = (int32_t)rtp_seq - (int32_t)stream->last_rtp_seq;
-
-        if (diff < -32768) {
-            diff += 65536;
-        } else if (diff > 32768) {
-            diff -= 65536;
-        }
+        int32_t diff = calculate_rtp_seq_diff(rtp_seq, stream->last_rtp_seq);
 
         if (diff > 1) {
             // Gap detected
@@ -311,11 +316,6 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
     stream->has_last_seq = true;
 
     /* Strip RTP header */
-    uint32_t rtp_len = get_rtp_header_length(payload, payload_len);
-    if (rtp_len == 0) {
-        return;
-    }
-
     const uint8_t* frame = payload + rtp_len;
     uint32_t remaining = payload_len - rtp_len;
 

@@ -1,4 +1,4 @@
-// Copyright RF Creations Ltd 2023
+// Copyright RF Creations Ltd 2026
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
 /**
@@ -7,6 +7,7 @@
  */
 
 #include "bluespy_codec_interface.h"
+#include "bluespy_codec_utils.h"
 #include "codec_structures.h"
 
 extern "C" {
@@ -19,7 +20,7 @@ extern "C" {
 #include <string.h>
 
 /*------------------------------------------------------------------------------
- * Constants
+ * Constants & Offsets
  *----------------------------------------------------------------------------*/
 
 #define PCM_BUFFER_SAMPLES 8192                   /* Max 16-bit samples per decode */
@@ -32,11 +33,20 @@ extern "C" {
 #define CODEC_ID_APTX 0x01
 #define CODEC_ID_APTX_HD 0x02
 
-/* * Standard aptX Sample Rate Values (Upper Nibble of Byte 6 of Media_Codec_Specific_Information) */
+/** aptX Configuration Offsets (Media_Codec_Specific_Information) */
+#define APTX_CONFIG_LEN_MIN 7
+#define APTX_OFFSET_CODEC_ID 4
+#define APTX_OFFSET_FREQ 6
+
+/** Standard aptX Sample Rate Values (Upper Nibble of Byte 6) */
 #define APTX_FREQ_VAL_48000 0x1
 #define APTX_FREQ_VAL_44100 0x2
 #define APTX_FREQ_VAL_32000 0x4
 #define APTX_FREQ_VAL_16000 0x8
+
+/** 24-bit to 16-bit Conversion Masks */
+#define INT24_SIGN_BIT 0x00800000
+#define INT24_SIGN_EXT 0xFF000000
 
 /*------------------------------------------------------------------------------
  * Types
@@ -65,13 +75,6 @@ typedef struct {
  *----------------------------------------------------------------------------*/
 
 /**
- * @brief Read little-endian uint32 from buffer
- */
-static inline uint32_t read_le32(const uint8_t* p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-}
-
-/**
  * @brief Check if configuration is for aptX codec
  *
  * @param cap  AVDTP Media Codec capability structure
@@ -83,21 +86,25 @@ static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, 
     if (cap->Media_Codec_Type != AVDTP_Codec_Vendor_Specific) {
         return false;
     }
+
     const uint8_t* info = cap->Media_Codec_Specific_Information;
     uint32_t vendor_id = read_le32(info);
-    uint8_t codec_id = info[4];
+    uint8_t codec_id = info[APTX_OFFSET_CODEC_ID];
 
     if (vendor_id != VENDOR_ID_QUALCOMM) {
         return false;
     }
+
     if (codec_id == CODEC_ID_APTX) {
         *is_hd_out = false;
         return true;
     }
+
     if (codec_id == CODEC_ID_APTX_HD) {
         *is_hd_out = true;
         return true;
     }
+
     return false;
 }
 
@@ -113,24 +120,20 @@ static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, 
  * @return Sample rate in Hz
  */
 static uint32_t parse_sample_rate(const uint8_t* info, uint32_t len) {
-    if (len < 7) {
+    if (len < APTX_CONFIG_LEN_MIN) {
         return 44100;
     }
 
-    uint8_t freq_nibble = (info[6] >> 4) & 0x0F;
+    uint8_t freq_nibble = (info[APTX_OFFSET_FREQ] >> 4) & 0x0F;
 
-    if (freq_nibble & APTX_FREQ_VAL_44100) {
+    if (freq_nibble & APTX_FREQ_VAL_44100)
         return 44100;
-    }
-    if (freq_nibble & APTX_FREQ_VAL_48000) {
+    if (freq_nibble & APTX_FREQ_VAL_48000)
         return 48000;
-    }
-    if (freq_nibble & APTX_FREQ_VAL_32000) {
+    if (freq_nibble & APTX_FREQ_VAL_32000)
         return 32000;
-    }
-    if (freq_nibble & APTX_FREQ_VAL_16000) {
+    if (freq_nibble & APTX_FREQ_VAL_16000)
         return 16000;
-    }
 
     return 44100;
 }
@@ -153,9 +156,12 @@ static size_t convert_24bit_to_16bit(const uint8_t* src, size_t src_bytes, int16
     size_t samples_written = 0;
     for (size_t i = 0; i + 2 < src_bytes && samples_written < max_samples; i += 3) {
         int32_t sample = (int32_t)src[i] | ((int32_t)src[i + 1] << 8) | ((int32_t)src[i + 2] << 16);
-        if (sample & 0x00800000) {
-            sample |= 0xFF000000;
+
+        /* Preserve sign during truncation */
+        if (sample & INT24_SIGN_BIT) {
+            sample |= INT24_SIGN_EXT;
         }
+
         dst[samples_written++] = (int16_t)(sample >> 8);
     }
     return samples_written;
@@ -191,9 +197,15 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
 
+    uint32_t sample_rate =
+        parse_sample_rate(cap->Media_Codec_Specific_Information, info->config_len);
+
     /* Dry run to allow the host to check if this codec format is supported */
     if (stream_id == BLUESPY_ID_INVALID) {
         ret.error = 0;
+        ret.format.sample_rate = sample_rate;
+        ret.format.n_channels = 2;
+        ret.format.channel_mode = BLUESPY_CH_MODE_STEREO;
         return ret;
     }
 
@@ -211,10 +223,11 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     /* Init Decoder */
     stream->is_hd = is_hd;
-    stream->sample_rate = parse_sample_rate(cap->Media_Codec_Specific_Information, info->config_len);
+    stream->sample_rate = sample_rate;
     stream->channels = 2;
     stream->decoder = aptx_init(is_hd);
     stream->parent_stream_id = stream_id;
+
     if (!stream->decoder) {
         free(stream);
         ret.error = -3;
@@ -230,6 +243,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
     ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
+    ret.format.channel_mode = BLUESPY_CH_MODE_STEREO;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;
     return ret;
@@ -243,12 +257,10 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
     if (!stream || !stream->initialized || !stream->decoder) {
         return;
     }
+
     if (!payload || payload_len == 0) {
         return;
     }
-
-    const uint32_t missing_samples = 0; // NOTE this plugin assumes RAW aptX frames (no RTP headers)
-                                        // so gap detection is disabled (missing_samples = 0)
 
     /* Decode (Directly on payload, no header stripping) */
     size_t raw_bytes_written = 0;
@@ -268,8 +280,8 @@ BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload, u
     if (samples > 0) {
         uint32_t pcm_bytes = (uint32_t)(samples * sizeof(int16_t));
 
-        // Pass 0 for missing_samples
-        bluespy_add_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id, missing_samples);
+        /* Pass 0 for missing_samples since raw aptX frames don't use RTP seq numbers */
+        bluespy_add_audio((const uint8_t*)stream->pcm_buffer, pcm_bytes, event_id, 0);
 
         stream->total_frames += (uint32_t)(samples / stream->channels);
     }

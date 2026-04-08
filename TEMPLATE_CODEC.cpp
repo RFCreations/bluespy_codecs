@@ -1,8 +1,13 @@
+// Copyright RF Creations Ltd 2026
+// Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
+
 /**
  * @file TEMPLATE_CODEC.cpp
  * @brief Template codec plugin for blueSPY
  *
  * Use this file as a skeleton for implementing a new codec plugin.
+ * It will also be helpful to look at the working implementations in this repo which include
+ * AAC.cpp, APTX.cpp, LDAC.cpp, and LC3.cpp.
  *
  * Each codec plugin must implement the following exported functions:
  *   - `init()`
@@ -21,6 +26,7 @@
  */
 
 #include "bluespy_codec_interface.h"
+#include "bluespy_codec_utils.h"
 #include "codec_structures.h"
 
 #include <stdbool.h>
@@ -29,11 +35,19 @@
 #include <string.h>
 
 /*------------------------------------------------------------------------------
- * Configuration Constants (adjust as needed)
+ * Constants & Offsets
  *----------------------------------------------------------------------------*/
 
 /** Example PCM buffer size (in S16 samples) */
 #define TEMPLATE_PCM_BUFFER_SAMPLES 8192
+
+/** Example Vendor / Codec IDs (Replace with actual values) */
+#define VENDOR_ID_EXAMPLE 0x00000000
+#define CODEC_ID_EXAMPLE 0xFF
+
+/** Example Configuration Offsets (Encourage abstraction of magic numbers) */
+#define CONFIG_LEN_MIN 6
+#define OFFSET_SAMPLE_RATE 4
 
 /*------------------------------------------------------------------------------
  * Data Structures
@@ -42,16 +56,22 @@
 /**
  * @brief Per-stream codec decoder state.
  *
- * Each active stream has one instance of this structure.  Put any
+ * Each active stream has one instance of this structure. Put any
  * codec-specific decoder handles, context state, or buffers here.
  */
 typedef struct {
     bluespy_audiostream_id parent_stream_id;
     bool initialized;
 
+    /* Sequence Tracking for Gap Detection */
+    bool have_seq;
+    uint16_t last_seq;
+    uint32_t samples_per_frame; /* Used to calculate missing_samples on packet loss */
+
     /* Example configuration */
     uint32_t sample_rate;
     uint8_t channels;
+    bluespy_channel_mode channel_mode;
 
     /* Example codec-specific handle (replace with real type) */
     void* decoder_handle;
@@ -62,42 +82,32 @@ typedef struct {
 } TEMPLATE_stream;
 
 /*------------------------------------------------------------------------------
- * Codec Configuration Parsing (optional, example stub)
+ * Codec Configuration Parsing
  *----------------------------------------------------------------------------*/
 
 /**
- * @brief Parse configuration data from blueSPY container (see codec_structures.h).
- *
- * The structure and meaning of the config block depend on the container type:
- *   - BLUESPY_CODEC_AVDTP: use AVDTP_Service_Capabilities_Media_Codec_t
- *   - BLUESPY_CODEC_CIS:   use LEA_Codec_Specific_Config_t
- *   - BLUESPY_CODEC_BIS:   use LEA_Broadcast_Codec_Config_t
- *
- * You may safely assume `config` points to a valid container block
- * of `config_len` bytes (host side guarantees bounds).
+ * @brief Parse configuration data from blueSPY container.
  */
 static bool parse_codec_config(const bluespy_audio_codec_info* info, TEMPLATE_stream* stream) {
     if (!info || !info->config || info->config_len == 0) {
         return false;
     }
 
+    /* Example of parsing logic based on container */
     switch (info->container) {
     case BLUESPY_CODEC_AVDTP:
         /* Typical for Classic A2DP codecs — parse AVDTP capabilities here */
         stream->sample_rate = 44100;
         stream->channels = 2;
+        stream->channel_mode = BLUESPY_CH_MODE_STEREO;
         break;
 
     case BLUESPY_CODEC_CIS:
-        /* LE Audio (Connected Isochronous Stream) configuration */
+    case BLUESPY_CODEC_BIS:
+        /* LE Audio (Isochronous Stream) configuration (LTV parsing) */
         stream->sample_rate = 48000;
         stream->channels = 1;
-        break;
-
-    case BLUESPY_CODEC_BIS:
-        /* LE Audio Broadcast Isochronous Stream configuration */
-        stream->sample_rate = 48000;
-        stream->channels = 2;
+        stream->channel_mode = BLUESPY_CH_MODE_MONO;
         break;
 
     default:
@@ -113,28 +123,13 @@ static bool parse_codec_config(const bluespy_audio_codec_info* info, TEMPLATE_st
 
 extern "C" {
 
-/**
- * @brief Library-level initialization.
- *
- * Called once when blueSPY loads this codec plugin.
- * Must return the API version and human-readable name.
- */
 BLUESPY_CODEC_API bluespy_audio_codec_lib_info init(void) {
     return (bluespy_audio_codec_lib_info){
         .api_version = BLUESPY_AUDIO_API_VERSION,
-        .codec_name = "TEMPLATE_CODEC" /* Change this name */
+        .codec_name = "TEMPLATE_CODEC" /* TODO: Change this name */
     };
 }
 
-/**
- * @brief Create and initialize a new codec stream.
- *
- * blueSPY calls this whenever a new captured audio stream starts.
- * Implementations should:
- *   - Parse the codec configuration from `info`.
- *   - Allocate and initialize decoder resources.
- *   - Return decoded format info and function pointers.
- */
 BLUESPY_CODEC_API bluespy_audio_codec_init_ret
 new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_info* info) {
     bluespy_audio_codec_init_ret ret = {
@@ -145,15 +140,23 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
 
-    /* Add a check here to ensure this plugin actually supports
-     * the requested codec (e.g. check Vendor ID in info->config).
-     * If not supported, return error = -1.
+    /* TODO: Add a check here to ensure this plugin actually supports
+     * the requested codec (e.g. check Vendor ID / Codec ID in info->config).
      */
 
-    /* Dry Run Check */
-    /* If stream_id is INVALID, the host just wants to verify support. */
+    /* Parse configuration into temporary struct to allow dry-run testing */
+    TEMPLATE_stream temp_stream = {0};
+    if (!parse_codec_config(info, &temp_stream)) {
+        ret.error = -3;
+        return ret;
+    }
+
+    /* Dry Run Check: If stream_id is INVALID, the host just wants to verify format support. */
     if (stream_id == BLUESPY_ID_INVALID) {
         ret.error = 0;
+        ret.format.sample_rate = temp_stream.sample_rate;
+        ret.format.n_channels = temp_stream.channels;
+        ret.format.channel_mode = temp_stream.channel_mode;
         return ret;
     }
 
@@ -164,17 +167,19 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
 
+    /* Apply parsed config */
     stream->parent_stream_id = stream_id;
+    stream->sample_rate = temp_stream.sample_rate;
+    stream->channels = temp_stream.channels;
+    stream->channel_mode = temp_stream.channel_mode;
 
-    /* Parse configuration from container */
-    if (!parse_codec_config(info, stream)) {
-        free(stream);
-        ret.error = -3;
-        return ret;
-    }
+    /* Initialize sequence tracking */
+    stream->have_seq = false;
+    stream->last_seq = 0;
+    stream->samples_per_frame = 1024; /* TODO: Update this based on codec spec */
 
     /* Initialize Decoder */
-    /* Call your actual decoder initialization here */
+    /* TODO: Call your actual decoder initialization here */
     stream->decoder_handle = malloc(1);
 
     if (!stream->decoder_handle) {
@@ -191,6 +196,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
+    ret.format.channel_mode = stream->channel_mode;
     ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;
@@ -198,43 +204,75 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     return ret;
 }
 
-/**
- * @brief Decode a codec frame or SDU and deliver PCM samples to the host.
- *
- * For A2DP, the payload usually contains an RTP header + codec frames.
- * For LE Audio, each payload represents one ISOAL SDU (possibly multiple frames).
- */
 BLUESPY_CODEC_API void codec_decode(uintptr_t context, const uint8_t* payload,
                                     const uint32_t payload_len, bluespy_event_id event_id,
                                     uint64_t sequence_number) {
-    (void)sequence_number;
-
     TEMPLATE_stream* stream = (TEMPLATE_stream*)context;
-    if (!stream || !stream->initialized || !payload || payload_len == 0) {
+    if (!stream || !stream->initialized) {
         return;
     }
 
-    /* Implement Decode Logic
-     * 1. Check for RTP headers (if AVDTP) and strip them.
-     * 2. Pass payload to your decoder handle.
-     * 3. Write output to stream->pcm_buffer.
+    /* -------------------------------------------------------------
+     * 1. Gap Detection
+     * ------------------------------------------------------------- */
+    uint32_t missing_samples = 0;
+
+    /* Determine the sequence number based on transport:
+     * - A2DP (AVDTP): Extract from RTP header via `read_be16(payload + RTP_SEQ_OFFSET)`
+     * - LE Audio (ISO): Provided directly by host via the `sequence_number` argument.
+     */
+    uint16_t current_seq = (uint16_t)sequence_number; /* Assuming LE Audio for template */
+
+    if (stream->have_seq) {
+        int32_t diff = calculate_rtp_seq_diff(current_seq, stream->last_seq);
+
+        if (diff > 1) {
+            uint32_t missing_packets = (uint32_t)(diff - 1);
+            missing_samples = missing_packets * stream->samples_per_frame;
+        }
+    }
+
+    stream->last_seq = current_seq;
+    stream->have_seq = true;
+
+    /* Handle empty/missing payloads (Sniffer timeline still needs the gap reported) */
+    if (!payload || payload_len == 0) {
+        if (missing_samples > 0) {
+            bluespy_add_audio(NULL, 0, event_id, missing_samples);
+        }
+        return;
+    }
+
+    /* -------------------------------------------------------------
+     * 2. Header Stripping (For A2DP / RTP only)
+     * ------------------------------------------------------------- */
+    /* uint32_t rtp_len = get_rtp_header_length(payload, payload_len);
+    if (rtp_len == 0) return;
+    const uint8_t* frame_data = payload + rtp_len;
+    uint32_t frame_len = payload_len - rtp_len;
+    */
+
+    /* -------------------------------------------------------------
+     * 3. Decode Frame
+     * ------------------------------------------------------------- */
+    /* TODO: Pass payload (or frame_data) to your decoder handle.
+     * WARNING: If decode fails due to missing data, DO NOT generate
+     * Packet Loss Concealment (PLC). This is a sniffer, so missing
+     * data should remain silent to accurately reflect the air trace.
      */
     size_t bytes_to_copy = payload_len;
     if (bytes_to_copy > sizeof(stream->pcm_buffer)) {
         bytes_to_copy = sizeof(stream->pcm_buffer);
     }
-
     memcpy(stream->pcm_buffer, payload, bytes_to_copy);
 
-    /* Deliver decoded PCM (16-bit little-endian) */
+    /* -------------------------------------------------------------
+     * 4. Deliver PCM
+     * ------------------------------------------------------------- */
     bluespy_add_audio((const uint8_t*)stream->pcm_buffer, (uint32_t)bytes_to_copy, event_id,
-                      0 /* missing_samples */
-    );
+                      missing_samples);
 }
 
-/**
- * @brief Deinitialize a codec stream and release resources.
- */
 BLUESPY_CODEC_API void codec_deinit(uintptr_t context) {
     TEMPLATE_stream* stream = (TEMPLATE_stream*)context;
     if (stream) {
