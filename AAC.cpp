@@ -156,12 +156,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
 
-    /* Dry run to allow the host to check if this codec format is supported */
-    if (stream_id == BLUESPY_ID_INVALID) {
-        ret.error = 0;
-        return ret;
-    }
-
     /* Parse codec configuration */
     const uint8_t* codec_info = cap->Media_Codec_Specific_Information;
     uint32_t sample_rate = parse_sample_rate(codec_info);
@@ -170,6 +164,14 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
     uint8_t channels = parse_channels(codec_info);
+
+    /* Dry run to allow the host to check if this codec format is supported */
+    if (stream_id == BLUESPY_ID_INVALID) {
+        ret.error = 0;
+        ret.format.sample_rate = sample_rate;
+        ret.format.n_channels = channels;
+        return ret;
+    }
 
     /* Allocate State */
     AAC_stream* stream = (AAC_stream*)calloc(1, sizeof(AAC_stream));

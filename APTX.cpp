@@ -191,9 +191,13 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
 
+    uint32_t sample_rate = parse_sample_rate(cap->Media_Codec_Specific_Information, info->config_len);
+    
     /* Dry run to allow the host to check if this codec format is supported */
     if (stream_id == BLUESPY_ID_INVALID) {
         ret.error = 0;
+        ret.format.sample_rate = sample_rate;
+        ret.format.n_channels = 2;
         return ret;
     }
 
@@ -211,7 +215,7 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     /* Init Decoder */
     stream->is_hd = is_hd;
-    stream->sample_rate = parse_sample_rate(cap->Media_Codec_Specific_Information, info->config_len);
+    stream->sample_rate = sample_rate;
     stream->channels = 2;
     stream->decoder = aptx_init(is_hd);
     stream->parent_stream_id = stream_id;
