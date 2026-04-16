@@ -153,25 +153,6 @@ static uint8_t parse_channels(const uint8_t* config) {
     return 2;
 }
 
-/**
- * @brief Parse the specific channel mode from LDAC configuration
- *
- * @param config  Pointer to Media_Codec_Specific_Information
- * @return The generalized bluespy channel mode
- */
-static bluespy_channel_mode parse_channel_mode(const uint8_t* config) {
-    uint8_t ch_bits = config[LDAC_OFFSET_CH_MODE];
-
-    if (ch_bits & LDAC_CH_MODE_STEREO)
-        return BLUESPY_CH_MODE_STEREO;
-    if (ch_bits & LDAC_CH_MODE_DUAL)
-        return BLUESPY_CH_MODE_DUAL_CHANNEL;
-    if (ch_bits & LDAC_CH_MODE_MONO)
-        return BLUESPY_CH_MODE_MONO;
-
-    return BLUESPY_CH_MODE_STEREO;
-}
-
 /*------------------------------------------------------------------------------
  * RTP / Frame Processing
  *----------------------------------------------------------------------------*/
@@ -232,14 +213,12 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         return ret;
     }
     uint8_t channels = parse_channels(codec_info);
-    bluespy_channel_mode ch_mode = parse_channel_mode(codec_info);
 
     /* Dry run to allow the host to check if this codec format is supported */
     if (stream_id == BLUESPY_ID_INVALID) {
         ret.error = 0;
         ret.format.sample_rate = sample_rate;
         ret.format.n_channels = channels;
-        ret.format.channel_mode = ch_mode;
         return ret;
     }
 
@@ -272,7 +251,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
-    ret.format.channel_mode = ch_mode;
     ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;

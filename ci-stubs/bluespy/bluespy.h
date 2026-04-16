@@ -868,11 +868,11 @@ typedef struct bluespy_key {
 } bluespy_key;
 
 /**
- * @brief List keys from the security tab. 
+ * @brief List keys from the security tab.
  * This functions performs allocation.
  * Later, call bluespy_free_keys to free the memory.
  *
- * e.g. 
+ * e.g.
  * bluspy_key* keys;
  * size_t count;
  * bluespy_list_keys(&keys, &count);
@@ -900,7 +900,7 @@ BLUESPY_API bluespy_error bluespy_free_keys(bluespy_key* keys, size_t count);
  * API version history:
  * - Version 1: Initial release (supports AVDTP/A2DP, CIS, and BIS containers)
  */
-#define BLUESPY_AUDIO_API_VERSION 2
+#define BLUESPY_AUDIO_API_VERSION 1
 
 /**
  * @brief Library-level information describing a codec implementation.
@@ -972,17 +972,6 @@ typedef enum bluespy_audio_sample_format {
 } bluespy_audio_sample_format;
 
 /**
- * @brief Enum of Generic channel modes covering standard A2DP use cases.
- */
-typedef enum bluespy_channel_mode {
-    BLUESPY_CH_MODE_UNSPECIFIED = 0,
-    BLUESPY_CH_MODE_MONO,
-    BLUESPY_CH_MODE_STEREO,
-    BLUESPY_CH_MODE_JOINT_STEREO,
-    BLUESPY_CH_MODE_DUAL_CHANNEL
-} bluespy_channel_mode;
-
-/**
  * @brief Describes the decoded audio format produced by a codec.
  *
  * Each codec must report its decoded sample format as part of its
@@ -995,8 +984,6 @@ typedef struct bluespy_audio_codec_decoded_format {
     /* Format of the PCM samples. Currently only S16_LE (signed 16-bit, little endian) is supported.
      */
     bluespy_audio_sample_format sample_format;
-    bluespy_channel_mode channel_mode; // <- A2DP channel mode
-    uint32_t audio_location_bitmask; // <- LE Audio spatial bitmask
 } bluespy_audio_codec_decoded_format;
 
 /**

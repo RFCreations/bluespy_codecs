@@ -71,7 +71,6 @@ typedef struct {
     /* Example configuration */
     uint32_t sample_rate;
     uint8_t channels;
-    bluespy_channel_mode channel_mode;
 
     /* Example codec-specific handle (replace with real type) */
     void* decoder_handle;
@@ -99,7 +98,6 @@ static bool parse_codec_config(const bluespy_audio_codec_info* info, TEMPLATE_st
         /* Typical for Classic A2DP codecs — parse AVDTP capabilities here */
         stream->sample_rate = 44100;
         stream->channels = 2;
-        stream->channel_mode = BLUESPY_CH_MODE_STEREO;
         break;
 
     case BLUESPY_CODEC_CIS:
@@ -107,7 +105,6 @@ static bool parse_codec_config(const bluespy_audio_codec_info* info, TEMPLATE_st
         /* LE Audio (Isochronous Stream) configuration (LTV parsing) */
         stream->sample_rate = 48000;
         stream->channels = 1;
-        stream->channel_mode = BLUESPY_CH_MODE_MONO;
         break;
 
     default:
@@ -156,7 +153,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         ret.error = 0;
         ret.format.sample_rate = temp_stream.sample_rate;
         ret.format.n_channels = temp_stream.channels;
-        ret.format.channel_mode = temp_stream.channel_mode;
         return ret;
     }
 
@@ -171,7 +167,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     stream->parent_stream_id = stream_id;
     stream->sample_rate = temp_stream.sample_rate;
     stream->channels = temp_stream.channels;
-    stream->channel_mode = temp_stream.channel_mode;
 
     /* Initialize sequence tracking */
     stream->have_seq = false;
@@ -196,7 +191,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
-    ret.format.channel_mode = stream->channel_mode;
     ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;
