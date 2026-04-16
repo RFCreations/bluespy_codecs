@@ -460,7 +460,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         ret.error = 0;
         ret.format.sample_rate = temp_config.sample_rate_hz;
         ret.format.n_channels = temp_config.channels;
-        ret.format.audio_location_bitmask = temp_config.audio_location;
         ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
         return ret;
     }
@@ -489,7 +488,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
 
     ret.format.sample_rate = stream->config.sample_rate_hz;
     ret.format.n_channels = stream->config.channels;
-    ret.format.audio_location_bitmask = stream->config.audio_location;
     ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;

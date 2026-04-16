@@ -205,7 +205,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
         ret.error = 0;
         ret.format.sample_rate = sample_rate;
         ret.format.n_channels = 2;
-        ret.format.channel_mode = BLUESPY_CH_MODE_STEREO;
         return ret;
     }
 
@@ -243,7 +242,6 @@ new_codec_stream(bluespy_audiostream_id stream_id, const bluespy_audio_codec_inf
     ret.format.sample_rate = stream->sample_rate;
     ret.format.n_channels = stream->channels;
     ret.format.sample_format = BLUESPY_AUDIO_FORMAT_S16_LE;
-    ret.format.channel_mode = BLUESPY_CH_MODE_STEREO;
     ret.fns.decode = codec_decode;
     ret.fns.deinit = codec_deinit;
     return ret;
