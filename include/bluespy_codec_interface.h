@@ -1,4 +1,4 @@
-// Copyright RF Creations Ltd 2023
+// Copyright RF Creations Ltd 2026
 // Distributed under the Boost Software License, Version 1.0. (See accompanying file LICENSE)
 
 #ifndef BLUESPY_CODEC_INTERFACE_H
