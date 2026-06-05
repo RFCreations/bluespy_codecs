@@ -26,12 +26,16 @@ extern "C" {
 #define PCM_BUFFER_SAMPLES 8192                   /* Max 16-bit samples per decode */
 #define RAW_BUFFER_BYTES (PCM_BUFFER_SAMPLES * 3) /* 24-bit input */
 
-/** Qualcomm Vendor ID (little-endian: 0x4F000000) */
-#define VENDOR_ID_QUALCOMM 0x0000004F
+/** Vendor IDs */
+#define VENDOR_ID_APT 0x0000004F      // For standard aptX
+#define VENDOR_ID_QUALCOMM 0x000000D7 // For all other aptX variants
 
-/** Qualcomm aptX Codec IDs */
-#define CODEC_ID_APTX 0x01
-#define CODEC_ID_APTX_HD 0x02
+/** aptX Codec IDs */
+#define CODEC_ID_APTX 0x0001
+#define CODEC_ID_APTX_HD 0x0024
+#define CODEC_ID_APTX_LL 0x0002
+#define CODEC_ID_APTX_TWS 0x0025
+#define CODEC_ID_APTX_AD 0x00AD
 
 /** aptX Configuration Offsets (Media_Codec_Specific_Information) */
 #define APTX_CONFIG_LEN_MIN 7
@@ -89,9 +93,14 @@ static bool is_aptx_config(const AVDTP_Service_Capabilities_Media_Codec_t* cap, 
 
     const uint8_t* info = cap->Media_Codec_Specific_Information;
     uint32_t vendor_id = read_le32(info);
-    uint8_t codec_id = info[APTX_OFFSET_CODEC_ID];
+    uint16_t codec_id = read_le16(&info[APTX_OFFSET_CODEC_ID]);
 
-    if (vendor_id != VENDOR_ID_QUALCOMM) {
+    if (vendor_id != VENDOR_ID_APT && vendor_id != VENDOR_ID_QUALCOMM) {
+        return false;
+    }
+
+    if (codec_id == CODEC_ID_APTX_LL || codec_id == CODEC_ID_APTX_TWS ||
+        codec_id == CODEC_ID_APTX_AD) {
         return false;
     }
 
